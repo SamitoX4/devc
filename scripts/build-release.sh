@@ -25,21 +25,7 @@ echo ""
 
 cd "$CLI_DIR"
 
-echo "=== Step 1: Cleaning previous builds ==="
-cargo clean
-echo ""
-
-echo "=== Step 2: Building release ==="
-cargo build --release
-
-if [ ! -f "target/release/devc" ]; then
-    echo "Error: Build failed"
-    exit 1
-fi
-echo "✓ Build successful"
-echo ""
-
-echo "=== Step 3: Detect platform ==="
+echo "=== Step 1: Detect platform ==="
 ARCH=$(uname -m)
 OS=$(uname -s)
 
@@ -67,7 +53,7 @@ esac
 echo "Platform: $OS ($TRIPLE)"
 echo ""
 
-echo "=== Step 4: Version ==="
+echo "=== Step 2: Select version ==="
 echo "Current releases:"
 
 get_latest_version() {
@@ -147,8 +133,34 @@ if [ -f "$RELEASES_DIR/devc-${VERSION}-${TRIPLE}.tar.gz" ]; then
     exit 1
 fi
 
+VERSION_NOV=${VERSION#v}
+
 echo ""
-echo "=== Step 5: Creating release package ==="
+echo "=== Step 3: Update Cargo.toml version ==="
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    sed -i.bak "s/^version = \".*\"/version = \"$VERSION_NOV\"/" Cargo.toml
+    rm -f Cargo.toml.bak
+else
+    sed -i "s/^version = \".*\"/version = \"$VERSION_NOV\"/" Cargo.toml
+fi
+echo "✓ Updated Cargo.toml to version $VERSION_NOV"
+echo ""
+
+echo "=== Step 4: Cleaning previous builds ==="
+cargo clean
+echo ""
+
+echo "=== Step 5: Building release ==="
+cargo build --release
+
+if [ ! -f "target/release/devc" ]; then
+    echo "Error: Build failed"
+    exit 1
+fi
+echo "✓ Build successful"
+echo ""
+
+echo "=== Step 6: Creating release package ==="
 
 mkdir -p "$RELEASES_DIR"
 
