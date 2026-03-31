@@ -92,15 +92,14 @@ impl ConfigMerger {
         let order = FieldOrder::get_order();
         let mut ordered_map = serde_json::Map::new();
 
-        for field in order {
-            if let Some(obj) = json.as_object() {
-                if let Some(value) = obj.get(field) {
+        if let Some(obj) = json.as_object() {
+            for field in order {
+                let key: &str = field;
+                if let Some(value) = obj.get(key) {
                     ordered_map.insert(field.to_string(), value.clone());
                 }
             }
-        }
 
-        if let Some(obj) = json.as_object() {
             for (key, value) in obj {
                 if !ordered_map.contains_key(key) {
                     ordered_map.insert(key.clone(), value.clone());
