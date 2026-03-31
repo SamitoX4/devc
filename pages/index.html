@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>devc - DevContainer CLI</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-card: #1a1a24;
+            --text-primary: #e4e4e7;
+            --text-secondary: #a1a1aa;
+            --accent: #8b5cf6;
+            --accent-light: #a78bfa;
+            --success: #22c55e;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        header {
+            text-align: center;
+            padding: 4rem 0;
+        }
+
+        .logo {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 4rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-light) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 1rem;
+        }
+
+        .tagline {
+            font-size: 1.25rem;
+            color: var(--text-secondary);
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        .install-box {
+            background: var(--bg-card);
+            border: 1px solid rgba(139, 92, 246, 0.2);
+            border-radius: 12px;
+            padding: 2rem;
+            margin: 2rem 0;
+            text-align: center;
+        }
+
+        .install-command {
+            font-family: 'JetBrains Mono', monospace;
+            background: var(--bg-secondary);
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            margin: 1rem 0;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .copy-btn {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .copy-btn:hover {
+            background: var(--accent-light);
+            transform: translateY(-2px);
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin: 3rem 0 1.5rem;
+            color: var(--text-primary);
+        }
+
+        .templates-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 1rem;
+            margin: 2rem 0;
+        }
+
+        .template-card {
+            background: var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 1.25rem;
+            transition: all 0.2s;
+        }
+
+        .template-card:hover {
+            border-color: var(--accent);
+            transform: translateY(-4px);
+        }
+
+        .template-name {
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 600;
+            color: var(--accent-light);
+            margin-bottom: 0.5rem;
+        }
+
+        .template-desc {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        .commands-section {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 2rem;
+            margin: 2rem 0;
+        }
+
+        .command {
+            font-family: 'JetBrains Mono', monospace;
+            margin: 1rem 0;
+            padding: 1rem;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            border-left: 3px solid var(--accent);
+        }
+
+        .command-desc {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+        }
+
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin: 2rem 0;
+        }
+
+        .feature {
+            text-align: center;
+            padding: 1.5rem;
+        }
+
+        .feature-icon {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+        }
+
+        .feature-title {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .feature-desc {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        footer {
+            text-align: center;
+            padding: 3rem 0;
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+
+        footer a {
+            color: var(--accent-light);
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+
+        .badge {
+            display: inline-block;
+            background: rgba(139, 92, 246, 0.2);
+            color: var(--accent-light);
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="badge">v0.1.0</div>
+            <h1 class="logo">devc</h1>
+            <p class="tagline">CLI tool for generating ready-to-use development containers for any project</p>
+        </header>
+
+        <div class="install-box">
+            <p>Quick install:</p>
+            <div class="install-command">
+                curl -fsSL https://samitox4.github.io/devc/install.sh | bash
+            </div>
+            <button class="copy-btn" onclick="copyInstall()">Copy</button>
+        </div>
+
+        <div class="features">
+            <div class="feature">
+                <div class="feature-icon">🚀</div>
+                <div class="feature-title">Instant Setup</div>
+                <div class="feature-desc">Generate a complete dev environment in seconds</div>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">📦</div>
+                <div class="feature-title">Multiple Templates</div>
+                <div class="feature-desc">Node.js, Android, React Native, Java, Rust, Go, Python & more</div>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">🔄</div>
+                <div class="feature-title">Auto Updates</div>
+                <div class="feature-desc">Templates stay up to date automatically</div>
+            </div>
+        </div>
+
+        <h2>Available Templates</h2>
+        <div class="templates-grid">
+            <div class="template-card">
+                <div class="template-name">nodejs</div>
+                <div class="template-desc">Node.js + TypeScript + npm/pnpm</div>
+            </div>
+            <div class="template-card">
+                <div class="template-name">android</div>
+                <div class="template-desc">Java 17 + Android SDK</div>
+            </div>
+            <div class="template-card">
+                <div class="template-name">react-native</div>
+                <div class="template-desc">Node.js + React Native + Android</div>
+            </div>
+            <div class="template-card">
+                <div class="template-name">java</div>
+                <div class="template-desc">Java 17 + Maven</div>
+            </div>
+            <div class="template-card">
+                <div class="template-name">laravel</div>
+                <div class="template-desc">PHP 8.3 + Composer</div>
+            </div>
+            <div class="template-card">
+                <div class="template-name">rust</div>
+                <div class="template-desc">Rust + Cargo</div>
+            </div>
+            <div class="template-card">
+                <div class="template-name">go</div>
+                <div class="template-desc">Go 1.22</div>
+            </div>
+            <div class="template-card">
+                <div class="template-name">python</div>
+                <div class="template-desc">Python 3.12 + pip</div>
+            </div>
+        </div>
+
+        <h2>Usage</h2>
+        <div class="commands-section">
+            <div class="command">
+                devc gen nodejs --name my-project
+                <div class="command-desc">Generate a Node.js devcontainer</div>
+            </div>
+            <div class="command">
+                devc gen react-native --name my-app
+                <div class="command-desc">Generate a React Native devcontainer</div>
+            </div>
+            <div class="command">
+                devc list
+                <div class="command-desc">List all available templates</div>
+            </div>
+            <div class="command">
+                devc update
+                <div class="command-desc">Update templates from repository</div>
+            </div>
+        </div>
+
+        <footer>
+            <p>
+                <a href="https://github.com/SamitoX4/devc">GitHub</a> · 
+                <a href="https://github.com/SamitoX4/devcontainers">Templates Repository</a>
+            </p>
+            <p style="margin-top: 0.5rem;">Made with ❤️ by SamitoX4</p>
+        </footer>
+    </div>
+
+    <script>
+        function copyInstall() {
+            const text = 'curl -fsSL https://samitox4.github.io/devc/install.sh | bash';
+            navigator.clipboard.writeText(text);
+            const btn = document.querySelector('.copy-btn');
+            btn.textContent = 'Copied!';
+            setTimeout(() => btn.textContent = 'Copy', 2000);
+        }
+    </script>
+</body>
+</html>
