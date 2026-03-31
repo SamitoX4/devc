@@ -42,23 +42,23 @@ impl ConfigMerger {
         }
 
         let content = fs::read_to_string(&json_path)?;
-        let json: serde_json::Value = serde_json::from_str(&content)
+        let mut json: serde_json::Value = serde_json::from_str(&content)
             .context("Failed to parse devcontainer.json")?;
 
-        let modified = Self::apply_modifications(json, project_name, git_name, git_email)?;
-        let ordered = Self::reorder_fields(modified);
-        let output = Self::serialize_ordered(&ordered)?;
+        Self::apply_modifications(&mut json, project_name, git_name, git_email)?;
+        
+        let output = Self::serialize_ordered(&json)?;
         fs::write(&json_path, output)?;
 
         Ok(())
     }
 
     fn apply_modifications(
-        mut json: serde_json::Value,
+        json: &mut serde_json::Value,
         project_name: &str,
         git_name: Option<&str>,
         git_email: Option<&str>,
-    ) -> Result<serde_json::Value> {
+    ) -> Result<()> {
         if let Some(obj) = json.as_object_mut() {
             if let Some(name) = obj.get_mut("name") {
                 *name = serde_json::Value::String(format!("{} DevContainer", project_name));
@@ -85,38 +85,48 @@ impl ConfigMerger {
             }
         }
 
-        Ok(json)
-    }
-
-    fn reorder_fields(json: serde_json::Value) -> serde_json::Value {
-        let order = FieldOrder::get_order();
-        let mut ordered_map = serde_json::Map::new();
-
-        if let Some(obj) = json.as_object() {
-            for field in order {
-                let key: &str = field;
-                if let Some(value) = obj.get(key) {
-                    ordered_map.insert(field.to_string(), value.clone());
-                }
-            }
-
-            for (key, value) in obj {
-                if !ordered_map.contains_key(key) {
-                    ordered_map.insert(key.clone(), value.clone());
-                }
-            }
-        }
-
-        serde_json::Value::Object(ordered_map)
+        Ok(())
     }
 
     fn serialize_ordered(value: &serde_json::Value) -> Result<String> {
+        let order = FieldOrder::get_order();
         let mut output = String::new();
-        Self::write_json(&mut output, value, 0)?;
+        
+        if let Some(obj) = value.as_object() {
+            output.push_str("{\n");
+            
+            let mut key_list: Vec<&String> = Vec::new();
+            
+            for field in order {
+                if let Some(key) = obj.keys().find(|k| k.as_str() == *field) {
+                    key_list.push(key);
+                }
+            }
+            
+            for key in obj.keys() {
+                if !order.contains(&key.as_str()) {
+                    key_list.push(key);
+                }
+            }
+            
+            for (i, key) in key_list.iter().enumerate() {
+                if i > 0 {
+                    output.push_str(",\n");
+                }
+                output.push_str(&format!("  \"{key}\": "));
+                Self::write_value(&mut output, obj.get(*key).unwrap(), 1)?;
+            }
+            
+            output.push_str("\n}\n");
+        } else {
+            Self::write_value(&mut output, value, 0)?;
+            output.push('\n');
+        }
+        
         Ok(output)
     }
 
-    fn write_json(output: &mut String, value: &serde_json::Value, indent: usize) -> Result<()> {
+    fn write_value(output: &mut String, value: &serde_json::Value, indent: usize) -> Result<()> {
         let spaces = "  ".repeat(indent);
         
         match value {
@@ -127,17 +137,13 @@ impl ConfigMerger {
                     output.push_str("{\n");
                     let entries: Vec<_> = map.iter().collect();
                     for (i, (key, val)) in entries.iter().enumerate() {
-                        output.push_str(&format!("{spaces}  \"{key}\": "));
-                        Self::write_json_value(output, val, indent + 1)?;
-                        if i < entries.len() - 1 {
-                            output.push(',');
+                        if i > 0 {
+                            output.push_str(",\n");
                         }
-                        output.push('\n');
+                        output.push_str(&format!("{spaces}  \"{key}\": "));
+                        Self::write_value(output, val, indent + 1)?;
                     }
-                    output.push_str(&format!("{spaces}}}"));
-                    if indent == 0 {
-                        output.push('\n');
-                    }
+                    output.push_str(&format!("\n{spaces}}}"));
                 }
             }
             serde_json::Value::Array(arr) => {
@@ -146,30 +152,19 @@ impl ConfigMerger {
                 } else {
                     output.push_str("[\n");
                     for (i, item) in arr.iter().enumerate() {
-                        output.push_str(&format!("{spaces}  "));
-                        Self::write_json_value(output, item, indent + 1)?;
-                        if i < arr.len() - 1 {
-                            output.push(',');
+                        if i > 0 {
+                            output.push_str(",\n");
                         }
-                        output.push('\n');
+                        output.push_str(&format!("{spaces}  "));
+                        Self::write_value(output, item, indent + 1)?;
                     }
-                    output.push_str(&format!("{spaces}]"));
-                    if indent == 0 {
-                        output.push('\n');
-                    }
+                    output.push_str(&format!("\n{spaces}]"));
                 }
             }
-            _ => Self::write_json_value(output, value, indent)?,
-        }
-        Ok(())
-    }
-
-    fn write_json_value(output: &mut String, value: &serde_json::Value, _indent: usize) -> Result<()> {
-        match value {
             serde_json::Value::String(s) => {
                 output.push('"');
                 output.push_str(&Self::escape_string(s));
-                output.push('"');
+                output.push_str("\"");
             }
             serde_json::Value::Number(n) => {
                 output.push_str(&n.to_string());
@@ -179,34 +174,6 @@ impl ConfigMerger {
             }
             serde_json::Value::Null => {
                 output.push_str("null");
-            }
-            serde_json::Value::Array(arr) => {
-                output.push_str("[\n");
-                for (i, item) in arr.iter().enumerate() {
-                    output.push_str(&format!("{}", "  ".repeat(_indent + 1)));
-                    Self::write_json_value(output, item, _indent + 1)?;
-                    if i < arr.len() - 1 {
-                        output.push(',');
-                    }
-                    output.push('\n');
-                }
-                output.push_str(&format!("{}]", "  ".repeat(_indent)));
-            }
-            serde_json::Value::Object(map) => {
-                output.push_str("{\n");
-                let entries: Vec<_> = map.iter().collect();
-                for (i, (key, val)) in entries.iter().enumerate() {
-                    output.push_str(&format!("{0}", "  ".repeat(_indent + 1)));
-                    output.push('"');
-                    output.push_str(&Self::escape_string(key));
-                    output.push_str("\": ");
-                    Self::write_json_value(output, val, _indent + 1)?;
-                    if i < entries.len() - 1 {
-                        output.push(',');
-                    }
-                    output.push('\n');
-                }
-                output.push_str(&format!("{}}}", "  ".repeat(_indent)));
             }
         }
         Ok(())
