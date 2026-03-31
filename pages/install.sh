@@ -48,21 +48,23 @@ fi
 
 echo "Downloading devc $VERSION..."
 
-DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${VERSION}/${BINARY_NAME}-${TRIPLE}.tar.gz"
+RELEASE_FILE="${BINARY_NAME}-${VERSION}-${TRIPLE}.tar.gz"
+DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${VERSION}/${RELEASE_FILE}"
 
 TEMP_DIR=$(mktemp -d)
 cd "$TEMP_DIR"
 
 echo "Downloading from: $DOWNLOAD_URL"
-curl -sL "$DOWNLOAD_URL" -o "${BINARY_NAME}.tar.gz"
+curl -sL "$DOWNLOAD_URL" -o "$RELEASE_FILE"
 
-if [ ! -f "${BINARY_NAME}.tar.gz" ] || [ ! -s "${BINARY_NAME}.tar.gz" ]; then
+if [ ! -f "$RELEASE_FILE" ] || [ ! -s "$RELEASE_FILE" ]; then
     echo "Error: Download failed"
+    echo "Make sure release $VERSION exists and has the file $RELEASE_FILE"
     rm -rf "$TEMP_DIR"
     exit 1
 fi
 
-tar xzf "${BINARY_NAME}.tar.gz"
+tar xzf "$RELEASE_FILE"
 
 chmod +x "$BINARY_NAME"
 mv "$BINARY_NAME" "$INSTALL_DIR/"
@@ -80,7 +82,7 @@ else
 fi
 
 echo ""
-echo "✓ devc v${VERSION} installed successfully!"
+echo "✓ devc $VERSION installed successfully!"
 echo ""
 
 echo "Running initial setup..."

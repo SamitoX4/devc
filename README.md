@@ -20,7 +20,7 @@ CLI tool for generating ready-to-use development containers.
 ### Quick Install
 
 ```bash
-curl -fsSL https://samitox4.github.io/devc/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/SamitoX4/devc/main/pages/install.sh | bash
 ```
 
 ### From Source
@@ -163,7 +163,7 @@ This will create a release package. Then:
 
 After the release is published, users can install using:
 ```bash
-curl -fsSL https://samitox4.github.io/devc/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/SamitoX4/devc/main/pages/install.sh | bash
 ```
 
 ## Configuration
@@ -198,4 +198,3 @@ MIT
 
 - [GitHub Repository](https://github.com/SamitoX4/devc)
 - [Templates Repository](https://github.com/SamitoX4/devcontainers)
-- [Documentation](https://samitox4.github.io/devc)
