@@ -8,6 +8,47 @@ if [ -z "$BASH_VERSION" ]; then
     exit 1
 fi
 
+export PATH="$HOME/.cargo/bin:$PATH"
+
+check_and_install_rust() {
+    if command -v cargo &> /dev/null; then
+        echo "✓ Rust detected: $(cargo --version)"
+        return 0
+    fi
+    
+    echo "⚠ Rust is not installed"
+    echo ""
+    echo "Rust is required to compile the CLI."
+    echo -n "Do you want to install Rust now? (Y/n): "
+    read -r response
+    response=${response:-Y}
+    
+    if [[ "$response" =~ ^[Nn]$ ]]; then
+        echo "Error: Rust is required to continue"
+        exit 1
+    fi
+    
+    echo ""
+    echo "Installing Rust..."
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    
+    if [ -f "$HOME/.cargo/env" ]; then
+        source "$HOME/.cargo/env"
+    fi
+    
+    export PATH="$HOME/.cargo/bin:$PATH"
+    
+    if command -v cargo &> /dev/null; then
+        echo ""
+        echo "✓ Rust installed successfully: $(cargo --version)"
+    else
+        echo ""
+        echo "Error: Failed to install Rust"
+        echo "Please install Rust manually: https://rustup.rs"
+        exit 1
+    fi
+}
+
 REPO="SamitoX4/devc"
 CLI_DIR="$(cd "$(dirname "$0")" && cd .. && pwd)/cli"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -21,6 +62,10 @@ fi
 echo "=========================================="
 echo "       devc Release Builder"
 echo "=========================================="
+echo ""
+
+echo "=== Checking Rust ==="
+check_and_install_rust
 echo ""
 
 cd "$CLI_DIR"
