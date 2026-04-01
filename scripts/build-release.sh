@@ -162,12 +162,32 @@ echo ""
 
 echo "=== Step 6: Creating release package ==="
 
+RELEASES_DIR="$(cd "$(dirname "$0")" && cd .. && pwd)/releases"
+REPO_ROOT="$(cd "$(dirname "$0")" && cd ../.. && pwd)"
+TEMPLATES_DIR="$REPO_ROOT/templates"
+STAGING_DIR="$RELEASES_DIR/staging-$$"
+
 mkdir -p "$RELEASES_DIR"
+mkdir -p "$STAGING_DIR"
+
+echo "Copying binary..."
+cp target/release/devc "$STAGING_DIR/"
+
+echo "Copying bundled templates..."
+if [ -d "$TEMPLATES_DIR" ]; then
+    cp -r "$TEMPLATES_DIR" "$STAGING_DIR/"
+    echo "✓ Templates included: $(ls "$TEMPLATES_DIR" | wc -l) templates"
+else
+    echo "⚠ Warning: Templates directory not found at $TEMPLATES_DIR"
+    echo "  Skipping bundled templates"
+fi
 
 RELEASE_FILE="devc-${VERSION}-${TRIPLE}.tar.gz"
-cd target/release
-tar -czvf "$RELEASES_DIR/$RELEASE_FILE" devc
+cd "$STAGING_DIR"
+tar -czvf "$RELEASES_DIR/$RELEASE_FILE" ./*
 cd "$SCRIPT_DIR"
+
+rm -rf "$STAGING_DIR"
 
 echo "✓ Package created: releases/$RELEASE_FILE"
 echo ""

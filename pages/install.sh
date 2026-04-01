@@ -69,6 +69,14 @@ tar xzf "$RELEASE_FILE"
 chmod +x "$BINARY_NAME"
 mv "$BINARY_NAME" "$INSTALL_DIR/"
 
+if [ -d "templates" ]; then
+    echo "Installing bundled templates..."
+    rm -rf "${HOME}/.devc/cache/templates"
+    mkdir -p "${HOME}/.devc/cache"
+    mv templates "${HOME}/.devc/cache/"
+    echo "✓ Bundled templates installed"
+fi
+
 cd /
 rm -rf "$TEMP_DIR"
 
@@ -85,8 +93,14 @@ echo ""
 echo "✓ devc $VERSION installed successfully!"
 echo ""
 
-echo "Running initial setup..."
-"$INSTALL_DIR/devc" update --force 2>/dev/null || true
+if [ -d "${HOME}/.devc/cache/templates" ]; then
+    echo "✓ Templates ready (offline mode available)"
+    echo ""
+    echo "Run 'devc update' to get the latest templates."
+else
+    echo "Running initial setup..."
+    "$INSTALL_DIR/devc" update --force 2>/dev/null || true
+fi
 
 echo ""
 echo "Next steps:"

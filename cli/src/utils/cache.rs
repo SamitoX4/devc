@@ -32,6 +32,7 @@ pub struct CacheManager {
     #[allow(dead_code)]
     cache_dir: PathBuf,
     templates_dir: PathBuf,
+    bundled_templates_dir: PathBuf,
     config_path: PathBuf,
     config: CacheConfig,
 }
@@ -44,6 +45,8 @@ impl CacheManager {
         
         let templates_dir = cache_dir.join("cache").join("templates");
         let config_path = cache_dir.join("config.json");
+
+        let bundled_templates_dir = Self::find_bundled_templates();
 
         let config = if config_path.exists() {
             let content = fs::read_to_string(&config_path)?;
@@ -58,12 +61,42 @@ impl CacheManager {
         Ok(Self {
             cache_dir,
             templates_dir,
+            bundled_templates_dir,
             config_path,
             config,
         })
     }
 
+    fn find_bundled_templates() -> PathBuf {
+        if let Ok(exe_path) = std::env::current_exe() {
+            let exe_dir = exe_path.parent().unwrap_or(std::path::Path::new("/"));
+            let bundled = exe_dir.join("templates");
+            if bundled.exists() && bundled.is_dir() {
+                return bundled;
+            }
+        }
+        PathBuf::new()
+    }
+
+    pub fn has_templates(&self) -> bool {
+        if self.templates_dir.join("nodejs").exists() {
+            return true;
+        }
+        if !self.bundled_templates_dir.as_os_str().is_empty() 
+           && self.bundled_templates_dir.join("nodejs").exists() {
+            return true;
+        }
+        false
+    }
+
     pub fn templates_dir(&self) -> &PathBuf {
+        if self.templates_dir.join("nodejs").exists() {
+            return &self.templates_dir;
+        }
+        if !self.bundled_templates_dir.as_os_str().is_empty() 
+           && self.bundled_templates_dir.join("nodejs").exists() {
+            return &self.bundled_templates_dir;
+        }
         &self.templates_dir
     }
 
@@ -105,6 +138,25 @@ impl CacheManager {
     }
 
     pub async fn download_templates(&self, force: bool, verbose: bool) -> Result<()> {
+        if !self.bundled_templates_dir.as_os_str().is_empty() 
+           && self.bundled_templates_dir.join("nodejs").exists() 
+           && !force {
+            if verbose {
+                println!("Using bundled templates (offline mode)");
+            }
+            if self.templates_dir.join("nodejs").exists() {
+                if verbose {
+                    println!("Templates already cached, skipping copy");
+                }
+            } else {
+                if verbose {
+                    println!("Copying bundled templates to cache...");
+                }
+                Self::copy_dir_recursive(&self.bundled_templates_dir, &self.templates_dir)?;
+            }
+            return Ok(());
+        }
+
         let fetcher = TemplateFetcher::new();
 
         if self.templates_dir.join("nodejs").exists() && !force {
@@ -124,10 +176,27 @@ impl CacheManager {
         Ok(())
     }
 
+    fn copy_dir_recursive(src: &PathBuf, dst: &PathBuf) -> Result<()> {
+        fs::create_dir_all(dst)?;
+        if let Ok(entries) = fs::read_dir(src) {
+            for entry in entries.flatten() {
+                let src_path = entry.path();
+                let dst_path = dst.join(entry.file_name());
+                if src_path.is_dir() {
+                    Self::copy_dir_recursive(&src_path, &dst_path)?;
+                } else {
+                    fs::copy(&src_path, &dst_path)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
     pub fn get_available_templates(&self) -> Vec<String> {
         let mut templates = Vec::new();
+        let templates_base = self.templates_dir();
         
-        if let Ok(entries) = fs::read_dir(&self.templates_dir) {
+        if let Ok(entries) = fs::read_dir(templates_base) {
             for entry in entries.flatten() {
                 let path = entry.path();
                 if path.is_dir() {
