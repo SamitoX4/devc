@@ -78,17 +78,6 @@ impl CacheManager {
         PathBuf::new()
     }
 
-    pub fn has_templates(&self) -> bool {
-        if self.templates_dir.join("nodejs").exists() {
-            return true;
-        }
-        if !self.bundled_templates_dir.as_os_str().is_empty() 
-           && self.bundled_templates_dir.join("nodejs").exists() {
-            return true;
-        }
-        false
-    }
-
     pub fn templates_dir(&self) -> &PathBuf {
         if self.templates_dir.join("nodejs").exists() {
             return &self.templates_dir;

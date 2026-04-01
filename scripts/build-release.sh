@@ -163,8 +163,6 @@ echo ""
 echo "=== Step 6: Creating release package ==="
 
 RELEASES_DIR="$(cd "$(dirname "$0")" && cd .. && pwd)/releases"
-REPO_ROOT="$(cd "$(dirname "$0")" && cd ../.. && pwd)"
-TEMPLATES_DIR="$REPO_ROOT/templates"
 STAGING_DIR="$RELEASES_DIR/staging-$$"
 
 mkdir -p "$RELEASES_DIR"
@@ -173,13 +171,23 @@ mkdir -p "$STAGING_DIR"
 echo "Copying binary..."
 cp target/release/devc "$STAGING_DIR/"
 
-echo "Copying bundled templates..."
-if [ -d "$TEMPLATES_DIR" ]; then
-    cp -r "$TEMPLATES_DIR" "$STAGING_DIR/"
-    echo "✓ Templates included: $(ls "$TEMPLATES_DIR" | wc -l) templates"
+echo "Downloading templates from GitHub..."
+TEMPLATES_URL="https://github.com/SamitoX4/devcontainers/archive/refs/heads/master.zip"
+TEMP_ZIP="/tmp/devc-templates-$$.zip"
+
+if curl -sL "$TEMPLATES_URL" -o "$TEMP_ZIP"; then
+    TEMPLATES_ZIP_CONTENT=$(unzip -l "$TEMP_ZIP" 2>/dev/null | grep -c "devcontainers-master/templates" || echo "0")
+    if [ "$TEMPLATES_ZIP_CONTENT" -gt 0 ]; then
+        unzip -q "$TEMP_ZIP" -d /tmp/
+        mv /tmp/devcontainers-master/templates "$STAGING_DIR/"
+        rm -rf /tmp/devcontainers-master "$TEMP_ZIP"
+        TEMPLATE_COUNT=$(ls "$STAGING_DIR/templates" 2>/dev/null | wc -l)
+        echo "✓ Templates included: $TEMPLATE_COUNT templates"
+    else
+        echo "⚠ Warning: No templates found in archive"
+    fi
 else
-    echo "⚠ Warning: Templates directory not found at $TEMPLATES_DIR"
-    echo "  Skipping bundled templates"
+    echo "⚠ Warning: Failed to download templates"
 fi
 
 RELEASE_FILE="devc-${VERSION}-${TRIPLE}.tar.gz"
