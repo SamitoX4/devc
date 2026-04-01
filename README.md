@@ -20,7 +20,7 @@ CLI tool for generating ready-to-use development containers.
 ### Quick Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/SamitoX4/devc/main/pages/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/SamitoX4/devc/main/docs/install.sh | bash
 ```
 
 ### From Source
@@ -137,7 +137,7 @@ devc/
 │   │   ├── commands/  # CLI commands (gen, list, update, config)
 │   │   └── utils/     # Cache, fetcher, copier, merger
 │   └── Cargo.toml
-├── pages/             # GitHub Pages (landing + install)
+├── docs/              # GitHub Pages (landing + install)
 │   ├── index.html
 │   └── install.sh
 └── scripts/          # Build scripts
@@ -163,7 +163,7 @@ This will create a release package. Then:
 
 After the release is published, users can install using:
 ```bash
-curl -fsSL https://raw.githubusercontent.com/SamitoX4/devc/main/pages/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/SamitoX4/devc/main/docs/install.sh | bash
 ```
 
 ## Configuration

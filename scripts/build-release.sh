@@ -181,14 +181,41 @@ fi
 VERSION_NOV=${VERSION#v}
 
 echo ""
-echo "=== Step 3: Update Cargo.toml version ==="
+echo "=== Step 3: Update versions ==="
+
+echo "  - Updating Cargo.toml..."
 if [[ "$OSTYPE" == "darwin"* ]]; then
     sed -i.bak "s/^version = \".*\"/version = \"$VERSION_NOV\"/" Cargo.toml
     rm -f Cargo.toml.bak
 else
     sed -i "s/^version = \".*\"/version = \"$VERSION_NOV\"/" Cargo.toml
 fi
-echo "✓ Updated Cargo.toml to version $VERSION_NOV"
+
+echo "  - Updating docs/index.html..."
+DOCS_INDEX="$CLI_DIR/../docs/index.html"
+if [ -f "$DOCS_INDEX" ]; then
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i.bak "s/<div class=\"badge\">.*<\/div>/<div class=\"badge\">$VERSION<\/div>/" "$DOCS_INDEX"
+        rm -f "$DOCS_INDEX.bak"
+    else
+        sed -i "s/<div class=\"badge\">.*<\/div>/<div class=\"badge\">$VERSION<\/div>/" "$DOCS_INDEX"
+    fi
+fi
+
+echo "  - Updating README.md..."
+README_FILE="$CLI_DIR/../README.md"
+if [ -f "$README_FILE" ]; then
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i.bak "s|raw.githubusercontent.com/SamitoX4/devc/main/pages|raw.githubusercontent.com/SamitoX4/devc/main/docs|g" "$README_FILE"
+        sed -i.bak "s|main/pages/install.sh|main/docs/install.sh|g" "$README_FILE"
+        rm -f "$README_FILE.bak"
+    else
+        sed -i "s|raw.githubusercontent.com/SamitoX4/devc/main/pages|raw.githubusercontent.com/SamitoX4/devc/main/docs|g" "$README_FILE"
+        sed -i "s|main/pages/install.sh|main/docs/install.sh|g" "$README_FILE"
+    fi
+fi
+
+echo "✓ All versions updated to $VERSION"
 echo ""
 
 echo "=== Step 4: Cleaning previous builds ==="
