@@ -133,13 +133,9 @@ fn prompt_project_name() -> Result<String> {
 fn prompt_git_name() -> String {
     let input: String = Input::new()
         .with_prompt("Git User Name")
+        .default("user".to_string())
         .interact_text()
-        .unwrap_or_default();
-
-    if input.is_empty() {
-        println!("{}", "Git user name is required".red());
-        std::process::exit(1);
-    }
+        .unwrap_or_else(|_| "user".to_string());
 
     input
 }
@@ -147,13 +143,9 @@ fn prompt_git_name() -> String {
 fn prompt_git_email() -> String {
     let input: String = Input::new()
         .with_prompt("Git User Email")
+        .default("user@example.com".to_string())
         .interact_text()
-        .unwrap_or_default();
-
-    if input.is_empty() {
-        println!("{}", "Git user email is required".red());
-        std::process::exit(1);
-    }
+        .unwrap_or_else(|_| "user@example.com".to_string());
 
     input
 }
