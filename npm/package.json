@@ -1,5 +1,5 @@
 {
-  "name": "devc",
+  "name": "@blackycoderx4/devc",
   "version": "0.2.3",
   "description": "CLI for generating devcontainers",
   "main": "bin/devc.js",
