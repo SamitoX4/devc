@@ -7,7 +7,8 @@
     "devc": "bin/devc.js"
   },
   "scripts": {
-    "postinstall": "node install.js"
+    "postinstall": "node install.js",
+    "prepublishOnly": "node check-release.js"
   },
   "files": [
     "bin/",
