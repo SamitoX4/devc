@@ -17,11 +17,27 @@ CLI tool for generating ready-to-use development containers.
 
 ## Installation
 
-### Quick Install
+### npm (Recommended — works on all platforms)
+
+```bash
+npm install -g devc
+```
+
+Requires Node.js 14+. The package automatically downloads the correct native binary for your platform (Windows, Linux, or macOS).
+
+### Quick Install (Linux / macOS)
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/SamitoX4/devc/main/docs/install.sh | bash
 ```
+
+### Windows
+
+If you have Node.js installed, use the npm method above.
+
+Alternatively:
+- **WSL2**: Run the Linux installer inside your WSL2 distribution.
+- **Manual**: Download the latest `.zip` for Windows from the [Releases](https://github.com/SamitoX4/devc/releases) page, extract it, and add `devc.exe` to your PATH.
 
 ### From Source
 
@@ -29,10 +45,14 @@ curl -fsSL https://raw.githubusercontent.com/SamitoX4/devc/main/docs/install.sh 
 git clone https://github.com/SamitoX4/devc.git
 cd devc/cli
 cargo build --release
+```
+
+On Linux/macOS copy the binary to your PATH:
+```bash
 cp target/release/devc ~/.local/bin/
 ```
 
-Make sure `~/.local/bin` is in your PATH.
+On Windows the binary will be at `target\release\devc.exe`.
 
 ## Usage
 
@@ -132,11 +152,19 @@ Options:
 
 ```
 devc/
+├── .github/           # GitHub Actions workflows
+│   └── workflows/
+│       └── release.yml
 ├── cli/               # Rust CLI source code
 │   ├── src/
 │   │   ├── commands/  # CLI commands (gen, list, update, config)
 │   │   └── utils/     # Cache, fetcher, copier, merger
 │   └── Cargo.toml
+├── npm/               # npm wrapper package
+│   ├── bin/
+│   ├── install.js
+│   ├── platform.js
+│   └── package.json
 ├── docs/              # GitHub Pages (landing + install)
 │   ├── index.html
 │   └── install.sh
@@ -146,7 +174,18 @@ devc/
 
 ## Creating a Release
 
-To create a GitHub release with precompiled binaries:
+Releases are built automatically with **GitHub Actions**. Simply push a version tag:
+
+```bash
+git tag v0.3.0
+git push origin v0.3.0
+```
+
+GitHub Actions will compile binaries for Linux, macOS (Intel & Apple Silicon), and Windows, package them with templates, and publish them to the [Releases](https://github.com/SamitoX4/devc/releases) page.
+
+### Manual Release (local)
+
+If you prefer to build locally:
 
 ```bash
 cd scripts
@@ -154,17 +193,7 @@ chmod +x build-release.sh
 ./build-release.sh
 ```
 
-This will create a release package. Then:
-
-1. Go to https://github.com/SamitoX4/devc/releases/new
-2. Create a new tag (e.g., v0.1.0)
-3. Upload the `.tar.gz` files for each platform
-4. Publish the release
-
-After the release is published, users can install using:
-```bash
-curl -fsSL https://raw.githubusercontent.com/SamitoX4/devc/main/docs/install.sh | bash
-```
+After the package is created, upload it manually to GitHub Releases.
 
 ## Configuration
 

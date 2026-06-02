@@ -220,11 +220,21 @@
         </header>
 
         <div class="install-box">
-            <p>Quick install:</p>
-            <div class="install-command">
+            <p><strong>Recommended — all platforms (Windows, Linux, macOS)</strong></p>
+            <div class="install-command" id="npm-cmd">
+                npm install -g devc
+            </div>
+            <button class="copy-btn" onclick="copyInstall('npm-cmd')">Copy</button>
+
+            <p style="margin-top: 1.5rem;"><strong>Linux / macOS alternative</strong></p>
+            <div class="install-command" id="bash-cmd">
                 curl -fsSL https://samitox4.github.io/devc/install.sh | bash
             </div>
-            <button class="copy-btn" onclick="copyInstall()">Copy</button>
+            <button class="copy-btn" onclick="copyInstall('bash-cmd')">Copy</button>
+
+            <p style="margin-top: 1rem; font-size: 0.875rem; color: var(--text-secondary);">
+                Windows users: use <code>npm install -g devc</code> (requires Node.js 14+), WSL2, or download the .exe from <a href="https://github.com/SamitoX4/devc/releases" style="color: var(--accent-light);">GitHub Releases</a>.
+            </p>
         </div>
 
         <div class="features">
@@ -311,12 +321,13 @@
     </div>
 
     <script>
-        function copyInstall() {
-            const text = 'curl -fsSL https://samitox4.github.io/devc/install.sh | bash';
+        function copyInstall(id) {
+            const text = document.getElementById(id).textContent.trim();
             navigator.clipboard.writeText(text);
-            const btn = document.querySelector('.copy-btn');
+            const btn = event.target;
+            const original = btn.textContent;
             btn.textContent = 'Copied!';
-            setTimeout(() => btn.textContent = 'Copy', 2000);
+            setTimeout(() => btn.textContent = original, 2000);
         }
     </script>
 </body>
