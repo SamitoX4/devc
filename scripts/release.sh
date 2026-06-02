@@ -2,6 +2,12 @@
 
 set -e
 
+if [ -z "$BASH_VERSION" ]; then
+    echo "Error: Please run with bash, not sh"
+    echo "Usage: bash scripts/release.sh"
+    exit 1
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 echo "=========================================="
