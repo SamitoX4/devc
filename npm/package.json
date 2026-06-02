@@ -1,0 +1,36 @@
+{
+  "name": "devc",
+  "version": "0.2.2",
+  "description": "CLI for generating devcontainers",
+  "main": "bin/devc.js",
+  "bin": {
+    "devc": "bin/devc.js"
+  },
+  "scripts": {
+    "postinstall": "node install.js"
+  },
+  "files": [
+    "bin/",
+    "install.js",
+    "platform.js"
+  ],
+  "keywords": [
+    "devcontainer",
+    "cli",
+    "development",
+    "docker",
+    "vscode"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SamitoX4/devc.git"
+  },
+  "bugs": {
+    "url": "https://github.com/SamitoX4/devc/issues"
+  },
+  "homepage": "https://samitox4.github.io/devc",
+  "engines": {
+    "node": ">=14"
+  }
+}

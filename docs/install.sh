@@ -30,6 +30,24 @@ case "$OS" in
             *) echo "Unsupported architecture: $ARCH"; exit 1 ;;
         esac
         ;;
+    MINGW*|MSYS*|CYGWIN*)
+        echo ""
+        echo "Windows detected. The bash installer is not supported on Windows."
+        echo ""
+        echo "Please install devc using one of these methods:"
+        echo ""
+        echo "  1. npm (recommended):"
+        echo "     npm install -g devc"
+        echo ""
+        echo "  2. WSL2 (Windows Subsystem for Linux):"
+        echo "     Run this script inside your WSL2 distribution."
+        echo ""
+        echo "  3. Manual download:"
+        echo "     Go to https://github.com/SamitoX4/devc/releases/latest"
+        echo "     and download the Windows .zip asset."
+        echo ""
+        exit 1
+        ;;
     *)
         echo "Unsupported OS: $OS"
         exit 1

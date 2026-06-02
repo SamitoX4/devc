@@ -2,6 +2,8 @@
 
 set -e
 
+CI_MODE="${CI:-false}"
+
 if [ -z "$BASH_VERSION" ]; then
     echo "Error: Please run with bash, not sh"
     echo "Usage: bash build-release.sh"
@@ -14,6 +16,11 @@ check_and_install_rust() {
     if command -v cargo &> /dev/null; then
         echo "✓ Rust detected: $(cargo --version)"
         return 0
+    fi
+
+    if [ "$CI_MODE" = "true" ]; then
+        echo "Error: Rust is not installed and CI mode does not allow interactive installation"
+        exit 1
     fi
     
     echo "⚠ Rust is not installed"
@@ -143,28 +150,37 @@ else
     echo "  m - major:     v1.0.0"
 fi
 
-echo ""
-echo -n "Enter version or type (p/f/m, default: $SUGGESTED): "
-read VERSION
-
-if [ -z "$VERSION" ]; then
-    VERSION="$SUGGESTED"
-elif [ "$VERSION" = "p" ] || [ "$VERSION" = "P" ]; then
-    VERSION="$SUGGESTED"
-elif [ "$VERSION" = "f" ] || [ "$VERSION" = "F" ]; then
-    if [ -n "$LATEST" ]; then
-        MAJOR=$(echo "$LATEST" | cut -d. -f1 | tr -d 'v')
-        MINOR=$(echo "$LATEST" | cut -d. -f2)
-        VERSION="v${MAJOR}.$((MINOR + 1)).0"
+if [ "$CI_MODE" = "true" ]; then
+    if [ -n "$1" ]; then
+        VERSION="$1"
     else
-        VERSION="v0.1.0"
+        VERSION="$SUGGESTED"
     fi
-elif [ "$VERSION" = "m" ] || [ "$VERSION" = "M" ]; then
-    if [ -n "$LATEST" ]; then
-        MAJOR=$(echo "$LATEST" | cut -d. -f1 | tr -d 'v')
-        VERSION="v$((MAJOR + 1)).0.0"
-    else
-        VERSION="v1.0.0"
+    echo "CI mode: using version $VERSION"
+else
+    echo ""
+    echo -n "Enter version or type (p/f/m, default: $SUGGESTED): "
+    read VERSION
+
+    if [ -z "$VERSION" ]; then
+        VERSION="$SUGGESTED"
+    elif [ "$VERSION" = "p" ] || [ "$VERSION" = "P" ]; then
+        VERSION="$SUGGESTED"
+    elif [ "$VERSION" = "f" ] || [ "$VERSION" = "F" ]; then
+        if [ -n "$LATEST" ]; then
+            MAJOR=$(echo "$LATEST" | cut -d. -f1 | tr -d 'v')
+            MINOR=$(echo "$LATEST" | cut -d. -f2)
+            VERSION="v${MAJOR}.$((MINOR + 1)).0"
+        else
+            VERSION="v0.1.0"
+        fi
+    elif [ "$VERSION" = "m" ] || [ "$VERSION" = "M" ]; then
+        if [ -n "$LATEST" ]; then
+            MAJOR=$(echo "$LATEST" | cut -d. -f1 | tr -d 'v')
+            VERSION="v$((MAJOR + 1)).0.0"
+        else
+            VERSION="v1.0.0"
+        fi
     fi
 fi
 

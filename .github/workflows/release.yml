@@ -1,0 +1,73 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            archive_ext: tar.gz
+          - os: macos-13
+            target: x86_64-apple-darwin
+            archive_ext: tar.gz
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            archive_ext: tar.gz
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            archive_ext: zip
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Build release binary
+        run: cargo build --release --target ${{ matrix.target }}
+        working-directory: ./cli
+
+      - name: Download templates
+        shell: bash
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          curl -sL https://github.com/SamitoX4/devcontainers/archive/refs/heads/master.zip -o templates.zip
+          unzip -q templates.zip
+          mv devcontainers-master/templates templates
+
+      - name: Package (Unix)
+        if: matrix.os != 'windows-latest'
+        shell: bash
+        run: |
+          mkdir -p staging
+          cp "$GITHUB_WORKSPACE/cli/target/${{ matrix.target }}/release/devc" staging/
+          cp -r "$GITHUB_WORKSPACE/templates" staging/
+          cd staging && tar czvf "$GITHUB_WORKSPACE/devc-${{ github.ref_name }}-${{ matrix.target }}.${{ matrix.archive_ext }}" .
+
+      - name: Package (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force -Path staging
+          Copy-Item "$env:GITHUB_WORKSPACE/cli/target/${{ matrix.target }}/release/devc.exe" staging/
+          Copy-Item -Recurse "$env:GITHUB_WORKSPACE/templates" staging/
+          $archiveName = "devc-$env:GITHUB_REF_NAME-${{ matrix.target }}.${{ matrix.archive_ext }}"
+          Compress-Archive -Path staging/* -DestinationPath "$env:GITHUB_WORKSPACE/$archiveName"
+
+      - name: Upload Release Asset
+        uses: softprops/action-gh-release@v1
+        with:
+          files: devc-${{ github.ref_name }}-${{ matrix.target }}.${{ matrix.archive_ext }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
