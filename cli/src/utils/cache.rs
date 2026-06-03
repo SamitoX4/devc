@@ -2,6 +2,7 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
+use walkdir::WalkDir;
 use crate::utils::fetcher::TemplateFetcher;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -184,15 +185,21 @@ impl CacheManager {
     pub fn get_available_templates(&self) -> Vec<String> {
         let mut templates = Vec::new();
         let templates_base = self.templates_dir();
-        
-        if let Ok(entries) = fs::read_dir(templates_base) {
-            for entry in entries.flatten() {
+
+        for entry in WalkDir::new(templates_base)
+            .max_depth(3)
+            .into_iter()
+            .flatten()
+        {
+            if entry.file_type().is_dir() {
                 let path = entry.path();
-                if path.is_dir() {
-                    if let Some(name) = path.file_name() {
-                        let name_str = name.to_string_lossy().to_string();
-                        if !name_str.starts_with('.') && name_str != "target" {
-                            templates.push(name_str);
+                // A valid template must contain .devcontainer/devcontainer.json
+                let devcontainer_json = path.join(".devcontainer").join("devcontainer.json");
+                if devcontainer_json.exists() {
+                    if let Ok(relative) = path.strip_prefix(templates_base) {
+                        let name = relative.to_string_lossy().to_string();
+                        if !name.is_empty() && name != "." && !name.starts_with('.') {
+                            templates.push(name);
                         }
                     }
                 }
@@ -200,6 +207,7 @@ impl CacheManager {
         }
 
         templates.sort();
+        templates.dedup();
         templates
     }
 

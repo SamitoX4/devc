@@ -1,20 +1,9 @@
 use anyhow::{Context, Result};
 use colored::*;
-use dialoguer::{Input, Select};
+use dialoguer::{Confirm, Input, Select};
 use crate::utils::cache::CacheManager;
 use crate::utils::copier::TemplateCopier;
 use crate::utils::merger::ConfigMerger;
-
-const TEMPLATES: &[&str] = &[
-    "nodejs",
-    "android",
-    "react-native",
-    "java",
-    "laravel",
-    "rust",
-    "go",
-    "python",
-];
 
 pub async fn run(
     template: Option<&str>,
@@ -32,7 +21,7 @@ pub async fn run(
         println!("{}", format!("  Template: {}", t).dimmed());
         t.to_string()
     } else {
-        select_template_interactive()?
+        select_template_interactive(cache)?
     };
 
     let project_name = if let Some(n) = name {
@@ -90,6 +79,15 @@ pub async fn run(
     )?;
     ConfigMerger::update_docker_compose(&current_dir, &project_name)?;
 
+    let dockerfile_path = current_dir.join(".devcontainer").join("Dockerfile");
+    if dockerfile_path.exists() {
+        if let Some(custom_args) = prompt_custom_versions(&dockerfile_path)? {
+            apply_custom_versions(&dockerfile_path, &custom_args)?;
+            println!();
+            println!("{}", "✓ Versiones personalizadas aplicadas".green());
+        }
+    }
+
     println!();
     println!("{}", "✓ Devcontainer generated successfully!".green());
     println!();
@@ -100,16 +98,22 @@ pub async fn run(
     Ok(())
 }
 
-fn select_template_interactive() -> Result<String> {
+fn select_template_interactive(cache: &CacheManager) -> Result<String> {
+    let templates = cache.get_available_templates();
+
+    if templates.is_empty() {
+        anyhow::bail!("No templates found. Run 'devc update' to download templates.");
+    }
+
     println!("{}", "Select a template:".bold());
 
     let selection = Select::new()
-        .items(TEMPLATES)
+        .items(&templates)
         .default(0)
         .interact()
         .context("Failed to display template selection")?;
 
-    let selected = TEMPLATES[selection];
+    let selected = &templates[selection];
     println!("{}", format!("  ✓ {}", selected).green());
     Ok(selected.to_string())
 }
@@ -148,4 +152,177 @@ fn prompt_git_email() -> String {
         .unwrap_or_else(|_| "user@example.com".to_string());
 
     input
+}
+
+fn prompt_custom_versions(dockerfile_path: &std::path::Path) -> Result<Option<Vec<(String, String)>>> {
+    let content = std::fs::read_to_string(dockerfile_path)?;
+    let mut args = Vec::new();
+
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("ARG ") {
+            let rest = &trimmed[4..];
+            if let Some(eq_pos) = rest.find('=') {
+                let name = rest[..eq_pos].trim().to_string();
+                let value = rest[eq_pos + 1..].trim().to_string();
+                // Skip ARGs that are just ENV passthroughs with variable references
+                if !value.starts_with("${") {
+                    args.push((name, value));
+                }
+            }
+        }
+    }
+
+    if args.is_empty() {
+        return Ok(None);
+    }
+
+    println!();
+    println!("{}", "Versiones disponibles para personalizar:".bold());
+    for (name, value) in &args {
+        println!("  {} = {}", name.dimmed(), value.cyan());
+    }
+
+    let customize = Confirm::new()
+        .with_prompt("¿Quieres personalizar alguna versión?")
+        .default(false)
+        .interact()
+        .context("Failed to display confirmation prompt")?;
+
+    if !customize {
+        return Ok(None);
+    }
+
+    let mut selections = std::collections::HashMap::new();
+    let mut result = Vec::new();
+
+    for (name, default_value) in args {
+        // Apply auto-suggestion logic based on previous selections
+        let suggested_default = match name.as_str() {
+            "BUILD_TOOLS_VERSION" => {
+                selections.get("ANDROID_API_LEVEL")
+                    .map(|api| format!("{}.0.0", api))
+                    .unwrap_or_else(|| default_value.clone())
+            }
+            _ => default_value.clone(),
+        };
+
+        let final_value = if let Some(options) = get_version_options(&name) {
+            let default_idx = options
+                .iter()
+                .position(|o| o == &suggested_default)
+                .unwrap_or_else(|| {
+                    options.iter()
+                        .position(|o| o == &default_value)
+                        .unwrap_or(0)
+                });
+
+            let selection = Select::new()
+                .with_prompt(format!("{}", name))
+                .items(&options)
+                .default(default_idx)
+                .interact()
+                .context(format!("Failed to select version for {}", name))?;
+
+            options[selection].clone()
+        } else {
+            let input: String = Input::new()
+                .with_prompt(format!("{} (Enter para mantener {})", name, suggested_default))
+                .allow_empty(true)
+                .interact_text()
+                .context(format!("Failed to read custom version for {}", name))?;
+
+            if input.trim().is_empty() {
+                suggested_default
+            } else {
+                input.trim().to_string()
+            }
+        };
+
+        selections.insert(name.clone(), final_value.clone());
+        result.push((name, final_value));
+    }
+
+    Ok(Some(result))
+}
+
+fn get_version_options(arg_name: &str) -> Option<Vec<String>> {
+    match arg_name {
+        "ANDROID_API_LEVEL" => Some(vec![
+            "33".to_string(),
+            "34".to_string(),
+            "35".to_string(),
+            "36".to_string(),
+        ]),
+        "BUILD_TOOLS_VERSION" => Some(vec![
+            "33.0.0".to_string(),
+            "34.0.0".to_string(),
+            "35.0.0".to_string(),
+            "36.0.0".to_string(),
+        ]),
+        "NDK_VERSION" => Some(vec![
+            "25.2.9519653".to_string(),
+            "26.1.10909125".to_string(),
+            "27.0.12077973".to_string(),
+            "27.2.12479018".to_string(),
+        ]),
+        "KOTLIN_VERSION" => Some(vec![
+            "2.0.0".to_string(),
+            "2.0.10".to_string(),
+            "2.0.21".to_string(),
+            "2.1.0".to_string(),
+            "2.1.10".to_string(),
+        ]),
+        "NODE_MAJOR_VERSION" => Some(vec![
+            "18".to_string(),
+            "20".to_string(),
+            "22".to_string(),
+        ]),
+        "VARIANT" => Some(vec![
+            "18-bookworm".to_string(),
+            "20-bookworm".to_string(),
+            "22-bookworm".to_string(),
+        ]),
+        "FLUTTER_BRANCH" => Some(vec![
+            "stable".to_string(),
+            "beta".to_string(),
+            "master".to_string(),
+        ]),
+        "CMAKE_VERSION" => Some(vec![
+            "3.18.1".to_string(),
+            "3.22.1".to_string(),
+            "3.25.2".to_string(),
+            "3.31.1".to_string(),
+        ]),
+        "CMDLINE_TOOLS_VERSION" => Some(vec![
+            "7302050_latest".to_string(),
+            "10406996_latest".to_string(),
+        ]),
+        _ => None,
+    }
+}
+
+fn apply_custom_versions(dockerfile_path: &std::path::Path, args: &[(String, String)]) -> Result<()> {
+    let content = std::fs::read_to_string(dockerfile_path)?;
+    let mut lines: Vec<String> = content.lines().map(|s| s.to_string()).collect();
+
+    for line in &mut lines {
+        let trimmed = line.trim();
+        if trimmed.starts_with("ARG ") {
+            let rest = &trimmed[4..];
+            if let Some(eq_pos) = rest.find('=') {
+                let arg_name = rest[..eq_pos].trim();
+                if let Some((_, new_value)) = args.iter().find(|(name, _)| name == arg_name) {
+                    if let Some(line_eq_pos) = line.find('=') {
+                        let before = &line[..line_eq_pos + 1];
+                        *line = format!("{}{}", before, new_value);
+                    }
+                }
+            }
+        }
+    }
+
+    std::fs::write(dockerfile_path, lines.join("\n"))
+        .context("Failed to write customized Dockerfile")?;
+    Ok(())
 }

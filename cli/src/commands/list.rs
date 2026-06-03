@@ -19,7 +19,7 @@ pub fn run(cache: &CacheManager, detailed: bool) -> Result<()> {
         println!("  {}", format!("• {}", template).cyan());
         
         if detailed {
-            let desc = get_template_description(template);
+            let desc = get_template_description(cache, template);
             println!("    {}", desc.dimmed());
             println!();
         }
@@ -32,16 +32,17 @@ pub fn run(cache: &CacheManager, detailed: bool) -> Result<()> {
     Ok(())
 }
 
-fn get_template_description(template: &str) -> &str {
-    match template {
-        "nodejs" => "Node.js with TypeScript, npm/pnpm, and common tools",
-        "android" => "Java 17 + Android SDK for Android development",
-        "react-native" => "Node.js + React Native + Android SDK for mobile apps",
-        "java" => "Java 17 + Maven for Java/Kotlin development",
-        "laravel" => "PHP 8.3 + Composer for Laravel development",
-        "rust" => "Rust (stable) + Cargo for Rust development",
-        "go" => "Go 1.22 for Go development",
-        "python" => "Python 3.12 with pip and virtualenv",
-        _ => "Development container template",
+fn get_template_description(cache: &CacheManager, template: &str) -> String {
+    let templates_dir = cache.templates_dir();
+    let template_path = templates_dir.join(template).join(".devcontainer").join("devcontainer.json");
+    
+    if let Ok(content) = std::fs::read_to_string(&template_path) {
+        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
+            if let Some(name) = json.get("name").and_then(|v| v.as_str()) {
+                return name.to_string();
+            }
+        }
     }
+    
+    format!("Development container template ({})", template)
 }

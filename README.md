@@ -9,11 +9,13 @@ CLI tool for generating ready-to-use development containers.
 ## Features
 
 - 🚀 Instant dev environment setup
-- 📦 Multiple technology templates
+- 📦 Multiple technology templates (including nested categories like `android/kotlin-native`)
 - 🔄 Auto-updates for templates
 - 💾 Offline support with local cache
 - ⚙️ Git configuration support
 - 🎯 Interactive mode with guided prompts
+- 🎛️ **Interactive version selector** — customize tool versions (Android API, Kotlin, NDK, Node, etc.) with arrow-key selection
+- 🔗 **Smart version suggestions** — Build Tools auto-suggests the matching version when you pick an Android API Level
 
 ## Installation
 
@@ -64,11 +66,32 @@ Just run:
 devc gen
 ```
 
-The CLI will prompt you for:
-1. Select a template (arrow keys)
-2. Project name (default: current directory)
-3. Git User Name
-4. Git User Email
+The CLI will guide you through:
+1. **Select a template** (arrow keys) — supports nested templates like `android/kotlin-native`
+2. **Project name** (default: current directory)
+3. **Git User Name**
+4. **Git User Email**
+5. **Customize versions** (optional) — if the template supports parameterized versions, you can pick from a curated list:
+
+   ```
+   KOTLIN_VERSION:
+     2.0.0
+     2.0.10
+   > 2.0.21
+     2.1.0
+
+   ANDROID_API_LEVEL:
+     33
+     34
+     35
+   > 36
+
+   BUILD_TOOLS_VERSION:
+     33.0.0
+     34.0.0
+     35.0.0
+   > 36.0.0   ← auto-suggested from API Level 36
+   ```
 
 ### With Flags
 
@@ -78,8 +101,13 @@ Skip prompts by passing flags:
 # Specify template and project name
 devc gen --template nodejs --name my-project
 
+# Nested templates (Android stack)
+devc gen --template android/kotlin-native --name my-native-app
+devc gen --template android/flutter --name my-flutter-app
+devc gen --template android/ndk --name my-ndk-project
+
 # With Git configuration
-devc gen --template react-native --name my-app --git-name "John Doe" --git-email "john@example.com"
+devc gen --template android/react-native --name my-app --git-name "John Doe" --git-email "john@example.com"
 
 # All options
 devc gen -t java -n my-java-app --git-name "John Doe" --git-email "john@example.com"
@@ -112,16 +140,26 @@ devc update
 
 ## Available Templates
 
+### General
+
 | Template | Description |
 |----------|-------------|
 | `nodejs` | Node.js with TypeScript, npm/pnpm |
-| `android` | Java 17 + Android SDK |
-| `react-native` | Node.js + React Native + Android |
 | `java` | Java 17 + Maven |
 | `laravel` | PHP 8.3 + Composer |
 | `rust` | Rust (stable) + Cargo |
 | `go` | Go 1.22 |
 | `python` | Python 3.12 + pip |
+
+### Android Stack
+
+| Template | Description | Customizable Versions |
+|----------|-------------|----------------------|
+| `android/java` | Java 17 + Android SDK | API Level, Build Tools, NDK, CMD Line Tools |
+| `android/kotlin-native` | Kotlin/Native + Android SDK | Kotlin, API Level, Build Tools, NDK, CMD Line Tools |
+| `android/ndk` | Android NDK + CMake | API Level, Build Tools, NDK, CMake, CMD Line Tools |
+| `android/react-native` | Node.js + React Native + Android SDK | Node version, API Level, Build Tools, NDK, CMD Line Tools |
+| `android/flutter` | Flutter + Android SDK | Flutter branch, API Level, Build Tools, NDK, CMD Line Tools |
 
 ## Commands
 
@@ -142,11 +180,12 @@ Options:
 ## How It Works
 
 1. **First Run**: Downloads templates to `~/.devc/cache/`
-2. **Interactive Mode**: Guides you through setup with prompts
-3. **Flag Mode**: Skip prompts by passing options
-4. **Git Configuration**: Saved to `~/.devc/config.json` for future use
-5. **Each Execution**: Checks for updates in the background
-6. **Offline Mode**: Uses cached templates when offline
+2. **Template Discovery**: Automatically finds all valid templates, including nested ones like `android/kotlin-native`
+3. **Interactive Mode**: Guides you through setup with prompts, including an optional version picker for parameterized templates
+4. **Flag Mode**: Skip prompts by passing options
+5. **Git Configuration**: Saved to `~/.devc/config.json` for future use
+6. **Each Execution**: Checks for updates in the background
+7. **Offline Mode**: Uses cached templates when offline
 
 ## Project Structure
 
