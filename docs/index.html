@@ -15,7 +15,9 @@
             --text-secondary: #a1a1aa;
             --accent: #8b5cf6;
             --accent-light: #a78bfa;
+            --accent-glow: rgba(139, 92, 246, 0.15);
             --success: #22c55e;
+            --border: rgba(255, 255, 255, 0.08);
         }
 
         * {
@@ -33,14 +35,14 @@
         }
 
         .container {
-            max-width: 900px;
+            max-width: 960px;
             margin: 0 auto;
             padding: 2rem;
         }
 
         header {
             text-align: center;
-            padding: 4rem 0;
+            padding: 4rem 0 2rem;
         }
 
         .logo {
@@ -57,16 +59,16 @@
         .tagline {
             font-size: 1.25rem;
             color: var(--text-secondary);
-            max-width: 500px;
+            max-width: 520px;
             margin: 0 auto;
         }
 
         .install-box {
             background: var(--bg-card);
-            border: 1px solid rgba(139, 92, 246, 0.2);
-            border-radius: 12px;
+            border: 1px solid var(--border);
+            border-radius: 16px;
             padding: 2rem;
-            margin: 2rem 0;
+            margin: 2.5rem 0;
             text-align: center;
         }
 
@@ -74,19 +76,22 @@
             font-family: 'JetBrains Mono', monospace;
             background: var(--bg-secondary);
             padding: 1rem 1.5rem;
-            border-radius: 8px;
-            font-size: 1.1rem;
-            margin: 1rem 0;
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            font-size: 1rem;
+            margin: 0.75rem 0;
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            word-break: break-all;
         }
 
         .copy-btn {
             background: var(--accent);
             color: white;
             border: none;
-            padding: 0.75rem 1.5rem;
+            padding: 0.65rem 1.25rem;
             border-radius: 8px;
-            font-size: 1rem;
+            font-size: 0.9rem;
+            font-weight: 500;
             cursor: pointer;
             transition: all 0.2s;
         }
@@ -96,49 +101,142 @@
             transform: translateY(-2px);
         }
 
+        .hint {
+            margin-top: 1rem;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        .hint a {
+            color: var(--accent-light);
+            text-decoration: none;
+        }
+
         h2 {
-            font-size: 1.5rem;
-            margin: 3rem 0 1.5rem;
+            font-size: 1.6rem;
+            margin: 3.5rem 0 1.25rem;
             color: var(--text-primary);
+        }
+
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 1.25rem;
+            margin: 2rem 0;
+        }
+
+        .feature {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            transition: all 0.2s;
+        }
+
+        .feature:hover {
+            border-color: rgba(139, 92, 246, 0.3);
+            transform: translateY(-3px);
+        }
+
+        .feature-icon {
+            font-size: 1.75rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .feature-title {
+            font-weight: 600;
+            margin-bottom: 0.35rem;
+            font-size: 1rem;
+        }
+
+        .feature-desc {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        .flow-steps {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            margin: 1.5rem 0;
+        }
+
+        .flow-step {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 1rem 1.25rem;
+        }
+
+        .flow-number {
+            background: var(--accent-glow);
+            color: var(--accent-light);
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 700;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            flex-shrink: 0;
+        }
+
+        .flow-text {
+            font-size: 0.95rem;
         }
 
         .templates-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
             gap: 1rem;
-            margin: 2rem 0;
+            margin: 1.5rem 0;
         }
 
         .template-card {
             background: var(--bg-card);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 8px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
             padding: 1.25rem;
             transition: all 0.2s;
         }
 
         .template-card:hover {
             border-color: var(--accent);
-            transform: translateY(-4px);
+            transform: translateY(-3px);
         }
 
         .template-name {
             font-family: 'JetBrains Mono', monospace;
             font-weight: 600;
             color: var(--accent-light);
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.35rem;
+            font-size: 0.9rem;
         }
 
         .template-desc {
-            font-size: 0.875rem;
+            font-size: 0.8rem;
             color: var(--text-secondary);
+            line-height: 1.4;
+        }
+
+        .template-versions {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: 0.5rem;
+            opacity: 0.8;
         }
 
         .commands-section {
             background: var(--bg-card);
-            border-radius: 12px;
+            border-radius: 16px;
             padding: 2rem;
             margin: 2rem 0;
+            border: 1px solid var(--border);
         }
 
         .command {
@@ -146,8 +244,9 @@
             margin: 1rem 0;
             padding: 1rem;
             background: var(--bg-secondary);
-            border-radius: 8px;
+            border-radius: 10px;
             border-left: 3px solid var(--accent);
+            font-size: 0.9rem;
         }
 
         .command-desc {
@@ -156,36 +255,29 @@
             margin-top: 0.5rem;
         }
 
-        .features {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 1.5rem;
-            margin: 2rem 0;
-        }
-
-        .feature {
-            text-align: center;
-            padding: 1.5rem;
-        }
-
-        .feature-icon {
-            font-size: 2rem;
-            margin-bottom: 1rem;
-        }
-
-        .feature-title {
-            font-weight: 600;
-            margin-bottom: 0.5rem;
-        }
-
-        .feature-desc {
-            font-size: 0.875rem;
+        .version-preview {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 1.25rem;
+            margin: 1.5rem 0;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
             color: var(--text-secondary);
+            line-height: 1.7;
+        }
+
+        .version-preview .highlight {
+            color: var(--accent-light);
+        }
+
+        .version-preview .cursor {
+            color: var(--success);
         }
 
         footer {
             text-align: center;
-            padding: 3rem 0;
+            padding: 3rem 0 2rem;
             color: var(--text-secondary);
             font-size: 0.875rem;
         }
@@ -201,13 +293,23 @@
 
         .badge {
             display: inline-block;
-            background: rgba(139, 92, 246, 0.2);
+            background: rgba(139, 92, 246, 0.15);
             color: var(--accent-light);
-            padding: 0.25rem 0.75rem;
+            padding: 0.3rem 0.85rem;
             border-radius: 20px;
-            font-size: 0.75rem;
+            font-size: 0.8rem;
             font-weight: 600;
             margin-bottom: 1rem;
+            border: 1px solid rgba(139, 92, 246, 0.25);
+        }
+
+        .section-label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--accent-light);
+            margin-bottom: 0.75rem;
         }
     </style>
 </head>
@@ -222,7 +324,7 @@
         <div class="install-box">
             <p><strong>Recommended — all platforms (Windows, Linux, macOS)</strong></p>
             <div class="install-command" id="npm-cmd">
-                npm install -g @blackycoderx4/devc
+                npm install -g devc
             </div>
             <button class="copy-btn" onclick="copyInstall('npm-cmd')">Copy</button>
 
@@ -232,42 +334,76 @@
             </div>
             <button class="copy-btn" onclick="copyInstall('bash-cmd')">Copy</button>
 
-            <p style="margin-top: 1rem; font-size: 0.875rem; color: var(--text-secondary);">
-                Windows users: use <code>npm install -g @blackycoderx4/devc</code> (requires Node.js 14+), WSL2, or download the .exe from <a href="https://github.com/SamitoX4/devc/releases" style="color: var(--accent-light);">GitHub Releases</a>.
+            <p class="hint">
+                Windows users: use <code>npm install -g devc</code> (requires Node.js 14+), WSL2, or download the .exe from <a href="https://github.com/SamitoX4/devc/releases">GitHub Releases</a>.
             </p>
         </div>
 
+        <h2>Features</h2>
         <div class="features">
             <div class="feature">
                 <div class="feature-icon">🚀</div>
                 <div class="feature-title">Instant Setup</div>
-                <div class="feature-desc">Generate a complete dev environment in seconds</div>
+                <div class="feature-desc">Generate a complete dev environment in seconds with a single command</div>
             </div>
             <div class="feature">
                 <div class="feature-icon">📦</div>
-                <div class="feature-title">Multiple Templates</div>
-                <div class="feature-desc">Node.js, Android, React Native, Java, Rust, Go, Python & more</div>
+                <div class="feature-title">Nested Templates</div>
+                <div class="feature-desc">Full Android stack: Java, Kotlin/Native, NDK, React Native, Flutter — all discoverable automatically</div>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">🎛️</div>
+                <div class="feature-title">Interactive Version Selector</div>
+                <div class="feature-desc">Pick tool versions (Android API, Kotlin, NDK, Node) from curated lists with arrow keys</div>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">🔗</div>
+                <div class="feature-title">Smart Suggestions</div>
+                <div class="feature-desc">Build Tools auto-suggests the matching version when you select an Android API Level</div>
             </div>
             <div class="feature">
                 <div class="feature-icon">🔄</div>
                 <div class="feature-title">Auto Updates</div>
-                <div class="feature-desc">Templates stay up to date automatically</div>
+                <div class="feature-desc">Templates stay up to date automatically via <code>devc update</code></div>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">💾</div>
+                <div class="feature-title">Offline Mode</div>
+                <div class="feature-desc">Bundled templates work without internet once downloaded</div>
+            </div>
+        </div>
+
+        <h2>How It Works</h2>
+        <div class="flow-steps">
+            <div class="flow-step">
+                <div class="flow-number">1</div>
+                <div class="flow-text"><strong>Select a template</strong> — arrow keys to pick from all available templates, including nested ones like <code>android/kotlin-native</code></div>
+            </div>
+            <div class="flow-step">
+                <div class="flow-number">2</div>
+                <div class="flow-text"><strong>Project name</strong> — defaults to the current directory name</div>
+            </div>
+            <div class="flow-step">
+                <div class="flow-number">3</div>
+                <div class="flow-text"><strong>Git config</strong> — name and email (saved for future runs)</div>
+            </div>
+            <div class="flow-step">
+                <div class="flow-number">4</div>
+                <div class="flow-text"><strong>Customize versions</strong> — optional step for Android templates to pick SDK, Kotlin, NDK versions</div>
+            </div>
+            <div class="flow-step">
+                <div class="flow-number">5</div>
+                <div class="flow-text"><strong>Done</strong> — open in VS Code and press <code>F1</code> → <em>Dev Containers: Reopen in Container</em></div>
             </div>
         </div>
 
         <h2>Available Templates</h2>
+
+        <div class="section-label">General</div>
         <div class="templates-grid">
             <div class="template-card">
                 <div class="template-name">nodejs</div>
                 <div class="template-desc">Node.js + TypeScript + npm/pnpm</div>
-            </div>
-            <div class="template-card">
-                <div class="template-name">android</div>
-                <div class="template-desc">Java 17 + Android SDK</div>
-            </div>
-            <div class="template-card">
-                <div class="template-name">react-native</div>
-                <div class="template-desc">Node.js + React Native + Android</div>
             </div>
             <div class="template-card">
                 <div class="template-name">java</div>
@@ -279,7 +415,7 @@
             </div>
             <div class="template-card">
                 <div class="template-name">rust</div>
-                <div class="template-desc">Rust + Cargo</div>
+                <div class="template-desc">Rust (stable) + Cargo</div>
             </div>
             <div class="template-card">
                 <div class="template-name">go</div>
@@ -291,19 +427,81 @@
             </div>
         </div>
 
+        <div class="section-label" style="margin-top: 2rem;">Android Stack — Parameterized Versions</div>
+        <div class="templates-grid">
+            <div class="template-card">
+                <div class="template-name">android/java</div>
+                <div class="template-desc">Java 17 + Android SDK</div>
+                <div class="template-versions">API · Build Tools · NDK · CMD Tools</div>
+            </div>
+            <div class="template-card">
+                <div class="template-name">android/kotlin-native</div>
+                <div class="template-desc">Kotlin/Native + Android SDK</div>
+                <div class="template-versions">Kotlin · API · Build Tools · NDK · CMD Tools</div>
+            </div>
+            <div class="template-card">
+                <div class="template-name">android/ndk</div>
+                <div class="template-desc">Android NDK + CMake</div>
+                <div class="template-versions">API · Build Tools · NDK · CMake · CMD Tools</div>
+            </div>
+            <div class="template-card">
+                <div class="template-name">android/react-native</div>
+                <div class="template-desc">Node.js + React Native + Android SDK</div>
+                <div class="template-versions">Node · API · Build Tools · NDK · CMD Tools</div>
+            </div>
+            <div class="template-card">
+                <div class="template-name">android/flutter</div>
+                <div class="template-desc">Flutter + Android SDK</div>
+                <div class="template-versions">Flutter branch · API · Build Tools · NDK · CMD Tools</div>
+            </div>
+        </div>
+
+        <h2>Version Customization</h2>
+        <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+            Android stack templates support customizable versions via Docker <code>ARG</code>s.
+            When running <code>devc gen</code> interactively, you can pick versions from curated lists:
+        </p>
+        <div class="version-preview">
+KOTLIN_VERSION:
+  2.0.0
+  2.0.10
+<span class="cursor">&gt;</span> <span class="highlight">2.0.21</span>
+  2.1.0
+
+ANDROID_API_LEVEL:
+  33
+  34
+  35
+<span class="cursor">&gt;</span> <span class="highlight">36</span>
+
+BUILD_TOOLS_VERSION:
+  33.0.0
+  34.0.0
+  35.0.0
+<span class="cursor">&gt;</span> <span class="highlight">36.0.0</span>   <span class="cursor">← auto-suggested</span>
+        </div>
+
         <h2>Usage</h2>
         <div class="commands-section">
             <div class="command">
-                devc gen nodejs --name my-project
-                <div class="command-desc">Generate a Node.js devcontainer</div>
+                devc gen
+                <div class="command-desc">Interactive mode — select template, name, and optional versions</div>
             </div>
             <div class="command">
-                devc gen react-native --name my-app
-                <div class="command-desc">Generate a React Native devcontainer</div>
+                devc gen --template nodejs --name my-project
+                <div class="command-desc">Generate a Node.js devcontainer with flags</div>
+            </div>
+            <div class="command">
+                devc gen --template android/kotlin-native --name my-native-app
+                <div class="command-desc">Generate a Kotlin/Native devcontainer</div>
+            </div>
+            <div class="command">
+                devc gen --template android/flutter --name my-flutter-app
+                <div class="command-desc">Generate a Flutter devcontainer</div>
             </div>
             <div class="command">
                 devc list
-                <div class="command-desc">List all available templates</div>
+                <div class="command-desc">List all available templates (including nested ones)</div>
             </div>
             <div class="command">
                 devc update
