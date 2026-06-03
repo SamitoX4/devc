@@ -170,7 +170,7 @@ devc update [options]           Update templates from repository
 devc config [options]          Configure Git user settings
 
 Options:
-  -t, --template <name>        Template name (e.g., nodejs, react-native)
+  -t, --template <name>        Template name (e.g., nodejs, android/kotlin-native)
   -n, --name <name>            Project name
   --git-name <name>            Git user name
   --git-email <email>          Git user email
