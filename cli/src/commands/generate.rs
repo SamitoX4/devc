@@ -17,6 +17,7 @@ pub async fn run(
     println!("{}", "====================".cyan());
     println!();
 
+    // 1. Template
     let selected_template = if let Some(t) = template {
         println!("{}", format!("  Template: {}", t).dimmed());
         t.to_string()
@@ -24,6 +25,7 @@ pub async fn run(
         select_template_interactive(cache)?
     };
 
+    // 2. Project Name
     let project_name = if let Some(n) = name {
         println!("{}", format!("  Project: {}", n).dimmed());
         n.to_string()
@@ -31,32 +33,31 @@ pub async fn run(
         prompt_project_name()?
     };
 
+    // 3. Git Config
     let git_config = cache.get_git_config();
 
-    let final_git_name = git_name.map(String::from)
-        .or_else(|| git_config.name.clone())
-        .or_else(|| {
-            if git_name.is_none() && git_email.is_none() && git_config.name.is_none() {
-                Some(prompt_git_name())
-            } else {
-                None
-            }
-        });
+    let final_git_name = if let Some(n) = git_name {
+        println!("{}", format!("  Git Name: {}", n).dimmed());
+        Some(n.to_string())
+    } else if let Some(n) = git_config.name.as_ref() {
+        println!("{}", format!("  Git Name: {} (from config)", n).dimmed());
+        Some(n.clone())
+    } else {
+        Some(prompt_git_name())
+    };
 
-    let final_git_email = git_email.map(String::from)
-        .or_else(|| git_config.email.clone())
-        .or_else(|| {
-            if git_name.is_none() && git_email.is_none() && git_config.email.is_none() {
-                Some(prompt_git_email())
-            } else {
-                None
-            }
-        });
+    let final_git_email = if let Some(e) = git_email {
+        println!("{}", format!("  Git Email: {}", e).dimmed());
+        Some(e.to_string())
+    } else if let Some(e) = git_config.email.as_ref() {
+        println!("{}", format!("  Git Email: {} (from config)", e).dimmed());
+        Some(e.clone())
+    } else {
+        Some(prompt_git_email())
+    };
 
     if let (Some(n), Some(e)) = (&final_git_name, &final_git_email) {
-        if git_name.is_some() || git_email.is_some() || git_config.name.is_none() {
-            cache.save_git_config(n, e)?;
-        }
+        cache.save_git_config(n, e)?;
     }
 
     println!();
