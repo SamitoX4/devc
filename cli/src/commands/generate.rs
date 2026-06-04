@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use colored::*;
-use dialoguer::{Confirm, Input, Select};
+use dialoguer::{Confirm, Input, MultiSelect, Select};
 use crate::utils::cache::CacheManager;
 use crate::utils::copier::TemplateCopier;
 use crate::utils::merger::ConfigMerger;
@@ -244,7 +244,29 @@ fn prompt_custom_versions(dockerfile_path: &std::path::Path) -> Result<Option<Ve
             _ => default_value.clone(),
         };
 
-        let final_value = if let Some(options) = get_version_options(&name) {
+        let final_value = if name == "NODE_MAJOR_VERSION" {
+            if let Some(options) = get_version_options(&name) {
+                let mut defaults = vec![false; options.len()];
+                if let Some(idx) = options.iter().position(|o| o == &suggested_default) {
+                    defaults[idx] = true;
+                }
+
+                let picked = MultiSelect::new()
+                    .with_prompt(format!("{} (space to select, enter to confirm)", name))
+                    .items(&options)
+                    .defaults(&defaults)
+                    .interact()
+                    .context(format!("Failed to select versions for {}", name))?;
+
+                if picked.is_empty() {
+                    suggested_default
+                } else {
+                    picked.iter().map(|&i| options[i].clone()).collect::<Vec<_>>().join(",")
+                }
+            } else {
+                suggested_default
+            }
+        } else if let Some(options) = get_version_options(&name) {
             let default_idx = options
                 .iter()
                 .position(|o| o == &suggested_default)
