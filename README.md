@@ -91,6 +91,17 @@ The CLI will guide you through:
      34.0.0
      35.0.0
    > 36.0.0   ← auto-suggested from API Level 36
+
+   GO_VERSION:
+     1.21.0
+     1.22.0
+     1.23.0
+   > 1.24.0
+
+   PYTHON_VERSION:
+     3.11
+     3.12
+   > 3.13
    ```
 
 ### With Flags
@@ -142,14 +153,14 @@ devc update
 
 ### General
 
-| Template | Description |
-|----------|-------------|
-| `nodejs` | Node.js with TypeScript, npm/pnpm |
-| `java` | Java 17 + Maven |
-| `laravel` | PHP 8.3 + Composer |
-| `rust` | Rust (stable) + Cargo |
-| `go` | Go 1.22 |
-| `python` | Python 3.12 + pip |
+| Template | Description | Customizable Versions |
+|----------|-------------|----------------------|
+| `nodejs` | Node.js with TypeScript, npm/pnpm | Node version, Base image variant |
+| `java` | Java 17 + Maven | Maven version |
+| `laravel` | PHP 8.3 + Composer | PHP version |
+| `rust` | Rust (stable) + Cargo | Rust toolchain |
+| `go` | Go 1.22 | Go version |
+| `python` | Python 3.12 + pip | Python version |
 
 ### Android Stack
 
