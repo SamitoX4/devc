@@ -84,6 +84,7 @@ pub async fn run(
     if dockerfile_path.exists() {
         if let Some(custom_args) = prompt_custom_versions(&dockerfile_path)? {
             apply_custom_versions(&dockerfile_path, &custom_args)?;
+            apply_custom_versions_to_config_files(&target_dir, &custom_args)?;
             println!();
             println!("{}", "✓ Versiones personalizadas aplicadas".green());
         }
@@ -319,6 +320,10 @@ fn get_version_options(arg_name: &str) -> Option<Vec<String>> {
             "20-bullseye".to_string(),
             "22-bullseye".to_string(),
         ]),
+        "JAVA_VERSION" => Some(vec![
+            "17".to_string(),
+            "21".to_string(),
+        ]),
         "MAVEN_VERSION" => Some(vec![
             "3.9.6".to_string(),
             "3.9.8".to_string(),
@@ -386,5 +391,33 @@ fn apply_custom_versions(dockerfile_path: &std::path::Path, args: &[(String, Str
 
     std::fs::write(dockerfile_path, lines.join("\n"))
         .context("Failed to write customized Dockerfile")?;
+    Ok(())
+}
+
+fn apply_custom_versions_to_config_files(
+    target_dir: &std::path::Path,
+    args: &[(String, String)],
+) -> Result<()> {
+    let devcontainer_json_path = target_dir.join(".devcontainer").join("devcontainer.json");
+    if !devcontainer_json_path.exists() {
+        return Ok(());
+    }
+
+    let mut content = std::fs::read_to_string(&devcontainer_json_path)?;
+    let mut modified = false;
+
+    for (name, value) in args {
+        if name == "JAVA_VERSION" {
+            content = content.replace("java-17-openjdk-amd64", &format!("java-{}-openjdk-amd64", value));
+            content = content.replace("JavaSE-17", &format!("JavaSE-{}", value));
+            modified = true;
+        }
+    }
+
+    if modified {
+        std::fs::write(&devcontainer_json_path, content)
+            .context("Failed to write customized devcontainer.json")?;
+    }
+
     Ok(())
 }

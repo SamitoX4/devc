@@ -156,7 +156,7 @@ devc update
 | Template | Description | Customizable Versions |
 |----------|-------------|----------------------|
 | `nodejs` | Node.js with TypeScript, npm/pnpm | Node version, Base image variant |
-| `java` | Java 17 + Maven | Maven version |
+| `java` | Java 17 + Maven | Java version, Maven version |
 | `laravel` | PHP 8.3 + Composer | PHP version |
 | `rust` | Rust (stable) + Cargo | Rust toolchain |
 | `go` | Go 1.22 | Go version |
