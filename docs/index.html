@@ -354,7 +354,7 @@
             <div class="feature">
                 <div class="feature-icon">🎛️</div>
                 <div class="feature-title">Interactive Version Selector</div>
-                <div class="feature-desc">Pick tool versions (Android API, Kotlin, NDK, Node) from curated lists with arrow keys</div>
+                <div class="feature-desc">Pick tool versions (Java, Go, Python, Node, Android API, Kotlin, NDK) from curated lists with arrow keys</div>
             </div>
             <div class="feature">
                 <div class="feature-icon">🔗</div>
@@ -389,7 +389,7 @@
             </div>
             <div class="flow-step">
                 <div class="flow-number">4</div>
-                <div class="flow-text"><strong>Customize versions</strong> — optional step for Android templates to pick SDK, Kotlin, NDK versions</div>
+                <div class="flow-text"><strong>Customize versions</strong> — optional step for parameterized templates to pick JDK, Go, Python, Node, SDK, Kotlin, NDK versions</div>
             </div>
             <div class="flow-step">
                 <div class="flow-number">5</div>
@@ -399,31 +399,37 @@
 
         <h2>Available Templates</h2>
 
-        <div class="section-label">General</div>
+        <div class="section-label">General — Parameterized Versions</div>
         <div class="templates-grid">
             <div class="template-card">
                 <div class="template-name">nodejs</div>
                 <div class="template-desc">Node.js + TypeScript + npm/pnpm</div>
+                <div class="template-versions">Node · Base variant</div>
             </div>
             <div class="template-card">
                 <div class="template-name">java</div>
                 <div class="template-desc">Java 17 + Maven</div>
+                <div class="template-versions">JDK · Maven</div>
             </div>
             <div class="template-card">
                 <div class="template-name">laravel</div>
                 <div class="template-desc">PHP 8.3 + Composer</div>
+                <div class="template-versions">PHP</div>
             </div>
             <div class="template-card">
                 <div class="template-name">rust</div>
                 <div class="template-desc">Rust (stable) + Cargo</div>
+                <div class="template-versions">Toolchain</div>
             </div>
             <div class="template-card">
                 <div class="template-name">go</div>
                 <div class="template-desc">Go 1.22</div>
+                <div class="template-versions">Go</div>
             </div>
             <div class="template-card">
                 <div class="template-name">python</div>
                 <div class="template-desc">Python 3.12 + pip</div>
+                <div class="template-versions">Python</div>
             </div>
         </div>
 
@@ -458,10 +464,24 @@
 
         <h2>Version Customization</h2>
         <p style="color: var(--text-secondary); margin-bottom: 1rem;">
-            Android stack templates support customizable versions via Docker <code>ARG</code>s.
+            Parameterized templates support customizable versions via Docker <code>ARG</code>s.
             When running <code>devc gen</code> interactively, you can pick versions from curated lists:
         </p>
         <div class="version-preview">
+JAVA_VERSION:
+  17
+<span class="cursor">&gt;</span> <span class="highlight">21</span>
+
+GO_VERSION:
+  1.22.0
+<span class="cursor">&gt;</span> <span class="highlight">1.23.0</span>
+  1.24.0
+
+PYTHON_VERSION:
+  3.11
+  3.12
+<span class="cursor">&gt;</span> <span class="highlight">3.13</span>
+
 KOTLIN_VERSION:
   2.0.0
   2.0.10
