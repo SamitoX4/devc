@@ -33,7 +33,10 @@ pub async fn run(
         prompt_project_name()?
     };
 
-    // 3. Git Config
+    // 3. Target Directory
+    let target_dir = prompt_target_directory()?;
+
+    // 4. Git Config
     let git_config = cache.get_git_config();
 
     let final_git_name = if let Some(n) = git_name {
@@ -67,20 +70,17 @@ pub async fn run(
     let template_dir = TemplateCopier::find_template_dir(cache.templates_dir(), &selected_template)
         .context("Template not found. Run 'devc update' to download templates.")?;
 
-    let current_dir = std::env::current_dir()
-        .context("Could not determine current directory")?;
-
-    TemplateCopier::copy_template(&template_dir, &current_dir)?;
+    TemplateCopier::copy_template(&template_dir, &target_dir)?;
 
     ConfigMerger::merge_template(
-        &current_dir,
+        &target_dir,
         &project_name,
         final_git_name.as_deref(),
         final_git_email.as_deref(),
     )?;
-    ConfigMerger::update_docker_compose(&current_dir, &project_name)?;
+    ConfigMerger::update_docker_compose(&target_dir, &project_name)?;
 
-    let dockerfile_path = current_dir.join(".devcontainer").join("Dockerfile");
+    let dockerfile_path = target_dir.join(".devcontainer").join("Dockerfile");
     if dockerfile_path.exists() {
         if let Some(custom_args) = prompt_custom_versions(&dockerfile_path)? {
             apply_custom_versions(&dockerfile_path, &custom_args)?;
@@ -92,9 +92,12 @@ pub async fn run(
     println!();
     println!("{}", "✓ Devcontainer generated successfully!".green());
     println!();
+    println!("Location: {}", target_dir.display().to_string().cyan());
+    println!();
     println!("Next steps:");
-    println!("  1. Open in VS Code: code .");
-    println!("  2. Press F1 and select: Dev Containers: Reopen in Container");
+    println!("  1. cd {}", target_dir.display());
+    println!("  2. Open in VS Code: code .");
+    println!("  3. Press F1 and select: Dev Containers: Reopen in Container");
 
     Ok(())
 }
@@ -133,6 +136,38 @@ fn prompt_project_name() -> Result<String> {
 
     println!("{}", format!("  ✓ {}", input).green());
     Ok(input)
+}
+
+fn prompt_target_directory() -> Result<std::path::PathBuf> {
+    let current_dir = std::env::current_dir()
+        .context("Could not determine current directory")?;
+    let default_path = current_dir.to_string_lossy().to_string();
+
+    let input: String = Input::new()
+        .with_prompt("¿En qué carpeta querés generar el devcontainer?")
+        .default(default_path)
+        .allow_empty(true)
+        .interact_text()
+        .context("Failed to read target directory")?;
+
+    let target = if input.trim().is_empty() {
+        current_dir
+    } else {
+        let path = std::path::PathBuf::from(input.trim());
+        if path.is_relative() {
+            current_dir.join(path)
+        } else {
+            path
+        }
+    };
+
+    if !target.exists() {
+        std::fs::create_dir_all(&target)
+            .context(format!("Failed to create directory: {}", target.display()))?;
+        println!("{}", format!("  ✓ Carpeta creada: {}", target.display()).green());
+    }
+
+    Ok(target)
 }
 
 fn prompt_git_name() -> String {
