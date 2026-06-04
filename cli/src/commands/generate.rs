@@ -315,9 +315,35 @@ fn get_version_options(arg_name: &str) -> Option<Vec<String>> {
             "22".to_string(),
         ]),
         "VARIANT" => Some(vec![
-            "18-bookworm".to_string(),
-            "20-bookworm".to_string(),
-            "22-bookworm".to_string(),
+            "18-bullseye".to_string(),
+            "20-bullseye".to_string(),
+            "22-bullseye".to_string(),
+        ]),
+        "MAVEN_VERSION" => Some(vec![
+            "3.9.6".to_string(),
+            "3.9.8".to_string(),
+            "3.9.9".to_string(),
+        ]),
+        "GO_VERSION" => Some(vec![
+            "1.21.0".to_string(),
+            "1.22.0".to_string(),
+            "1.23.0".to_string(),
+            "1.24.0".to_string(),
+        ]),
+        "RUST_TOOLCHAIN" => Some(vec![
+            "stable".to_string(),
+            "beta".to_string(),
+            "nightly".to_string(),
+        ]),
+        "PYTHON_VERSION" => Some(vec![
+            "3.11".to_string(),
+            "3.12".to_string(),
+            "3.13".to_string(),
+        ]),
+        "PHP_VERSION" => Some(vec![
+            "8.2".to_string(),
+            "8.3".to_string(),
+            "8.4".to_string(),
         ]),
         "FLUTTER_BRANCH" => Some(vec![
             "stable".to_string(),
