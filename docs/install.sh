@@ -37,7 +37,7 @@ case "$OS" in
         echo "Please install devc using one of these methods:"
         echo ""
         echo "  1. npm (recommended):"
-        echo "     npm install -g devc"
+        echo "     npm i @blackycoderx4/devc"
         echo ""
         echo "  2. WSL2 (Windows Subsystem for Linux):"
         echo "     Run this script inside your WSL2 distribution."

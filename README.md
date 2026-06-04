@@ -22,7 +22,7 @@ CLI tool for generating ready-to-use development containers.
 ### npm (Recommended — works on all platforms)
 
 ```bash
-npm install -g devc
+npm i @blackycoderx4/devc
 ```
 
 Requires Node.js 14+. The package automatically downloads the correct native binary for your platform (Windows, Linux, or macOS).

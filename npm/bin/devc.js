@@ -18,7 +18,7 @@ const binPath = path.join(vendorDir, asset.bin);
 
 if (!fs.existsSync(binPath)) {
   console.error(
-    'devc binary not found. Please reinstall the package (npm install -g devc).'
+    'devc binary not found. Please reinstall the package (npm i @blackycoderx4/devc).'
   );
   process.exit(1);
 }
