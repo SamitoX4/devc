@@ -1,5 +1,7 @@
 # devc
 
+https://samitox4.github.io/devc/
+
 CLI tool for generating ready-to-use development containers.
 
 ## Overview
