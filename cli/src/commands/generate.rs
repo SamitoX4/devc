@@ -30,7 +30,7 @@ pub async fn run(
         t.to_string()
     } else {
         tui.draw_frame("Selección de template", None)?;
-        select_template_interactive(cache)?
+        select_template_interactive(cache, &tui)?
     };
 
     // 2. Project Name
@@ -39,12 +39,12 @@ pub async fn run(
         n.to_string()
     } else {
         tui.draw_frame("Nombre del proyecto", Some(&selected_template))?;
-        prompt_project_name()?
+        prompt_project_name(&tui)?
     };
 
     // 3. Target Directory
     tui.draw_frame("Ubicación del devcontainer", Some(&selected_template))?;
-    let target_dir = prompt_target_directory()?;
+    let target_dir = prompt_target_directory(&tui)?;
 
     // 4. Git Config
     let git_config = cache.get_git_config();
@@ -57,7 +57,7 @@ pub async fn run(
         Some(n.clone())
     } else {
         tui.draw_frame("Configuración de Git", Some(&selected_template))?;
-        Some(prompt_git_name())
+        Some(prompt_git_name(&tui))
     };
 
     let final_git_email = if let Some(e) = git_email {
@@ -68,7 +68,7 @@ pub async fn run(
         Some(e.clone())
     } else {
         tui.draw_frame("Configuración de Git", Some(&selected_template))?;
-        Some(prompt_git_email())
+        Some(prompt_git_email(&tui))
     };
 
     if let (Some(n), Some(e)) = (&final_git_name, &final_git_email) {
@@ -290,8 +290,6 @@ fn build_security_config(
 }
 
 fn prompt_security_mode(default: &str, template: &str, tui: &Tui) -> Result<String> {
-    tui.draw_frame("Configuración de seguridad", Some(template))?;
-    
     let options = vec![
         "Modo Desarrollador (recomendado) — usuario con sudo sin contraseña",
         "Modo Seguro — usuario sin sudo",
@@ -306,32 +304,46 @@ fn prompt_security_mode(default: &str, template: &str, tui: &Tui) -> Result<Stri
         _ => 0,
     };
 
-    println!("{}", "Configuración de Seguridad del Contenedor".bold());
-    println!("{}", "===========================================".bold());
-    println!();
+    loop {
+        tui.draw_frame("Configuración de seguridad", Some(template))?;
+        println!("{}", "Configuración de Seguridad del Contenedor".bold());
+        println!("{}", "===========================================".bold());
+        println!();
 
-    let selection = Select::new()
-        .with_prompt("Elige el perfil de seguridad")
-        .items(&options)
-        .default(default_idx)
-        .interact()
-        .context("Failed to display security mode selection")?;
+        let mut items = options.clone();
+        items.push("❓  Ayuda".to_string());
 
-    let mode = match selection {
-        0 => "developer",
-        1 => "secure",
-        2 => "root",
-        3 => "custom",
-        _ => "developer",
-    };
+        let selection = Select::new()
+            .with_prompt("Elige el perfil de seguridad")
+            .items(&items)
+            .default(default_idx)
+            .interact()
+            .context("Failed to display security mode selection")?;
 
-    println!("{}", format!("  ✓ Modo: {}", mode).green());
-    Ok(mode.to_string())
+        if selection == options.len() {
+            tui.show_help_box("Configuración de seguridad")?;
+            continue;
+        }
+
+        let mode = match selection {
+            0 => "developer",
+            1 => "secure",
+            2 => "root",
+            3 => "custom",
+            _ => "developer",
+        };
+
+        println!("{}", format!("  ✓ Modo: {}", mode).green());
+        return Ok(mode.to_string());
+    }
 }
 
 fn prompt_remote_user(default: &str, template: &str, tui: &Tui) -> Result<String> {
     tui.draw_frame("Usuario de desarrollo", Some(template))?;
-    
+    if let Some(ctx) = crate::utils::tui::get_step_context("Usuario de desarrollo") {
+        tui.print_context(&ctx)?;
+    }
+
     let input: String = Input::new()
         .with_prompt("Nombre de usuario de desarrollo")
         .default(default.to_string())
@@ -344,6 +356,9 @@ fn prompt_remote_user(default: &str, template: &str, tui: &Tui) -> Result<String
 
 fn prompt_passwords(remote_user: &str, template: &str, tui: &Tui) -> Result<(String, String)> {
     tui.draw_frame("Contraseñas del contenedor", Some(template))?;
+    if let Some(ctx) = crate::utils::tui::get_step_context("Contraseñas del contenedor") {
+        tui.print_context(&ctx)?;
+    }
 
     let use_custom = Confirm::new()
         .with_prompt("¿Configurar contraseñas personalizadas?")
@@ -353,8 +368,15 @@ fn prompt_passwords(remote_user: &str, template: &str, tui: &Tui) -> Result<(Str
 
     if use_custom {
         tui.draw_frame("Contraseña de root", Some(template))?;
+        if let Some(ctx) = crate::utils::tui::get_step_context("Contraseña de root") {
+            tui.print_context(&ctx)?;
+        }
         let container_password = prompt_password("root del contenedor")?;
-        tui.draw_frame(format!("Contraseña de {}", remote_user).as_str(), Some(template))?;
+        let step = format!("Contraseña de {}", remote_user);
+        tui.draw_frame(&step, Some(template))?;
+        if let Some(ctx) = crate::utils::tui::get_step_context("Contraseña de root") {
+            tui.print_context(&ctx)?;
+        }
         let remote_password = prompt_password(remote_user)?;
         Ok((remote_password, container_password))
     } else {
@@ -406,8 +428,6 @@ fn prompt_password(for_user: &str) -> Result<String> {
 }
 
 fn prompt_sudo_mode(default: &str, template: &str, tui: &Tui) -> Result<String> {
-    tui.draw_frame("Privilegios sudo", Some(template))?;
-    
     let options = vec![
         "sudo sin contraseña (NOPASSWD:ALL)",
         "sudo con contraseña",
@@ -421,22 +441,34 @@ fn prompt_sudo_mode(default: &str, template: &str, tui: &Tui) -> Result<String> 
         _ => 0,
     };
 
-    let selection = Select::new()
-        .with_prompt("Modo sudo para el usuario de desarrollo")
-        .items(&options)
-        .default(default_idx)
-        .interact()
-        .context("Failed to display sudo mode selection")?;
+    loop {
+        tui.draw_frame("Privilegios sudo", Some(template))?;
 
-    let mode = match selection {
-        0 => "nopasswd",
-        1 => "password",
-        2 => "none",
-        _ => "nopasswd",
-    };
+        let mut items = options.clone();
+        items.push("❓  Ayuda".to_string());
 
-    println!("{}", format!("  ✓ Sudo: {}", mode).green());
-    Ok(mode.to_string())
+        let selection = Select::new()
+            .with_prompt("Modo sudo para el usuario de desarrollo")
+            .items(&items)
+            .default(default_idx)
+            .interact()
+            .context("Failed to display sudo mode selection")?;
+
+        if selection == options.len() {
+            tui.show_help_box("Privilegios sudo")?;
+            continue;
+        }
+
+        let mode = match selection {
+            0 => "nopasswd",
+            1 => "password",
+            2 => "none",
+            _ => "nopasswd",
+        };
+
+        println!("{}", format!("  ✓ Sudo: {}", mode).green());
+        return Ok(mode.to_string());
+    }
 }
 
 fn maybe_save_credentials(
@@ -452,6 +484,9 @@ fn maybe_save_credentials(
     } else {
         // Interactive prompt
         tui.draw_frame("Guardar credenciales", Some(template))?;
+        if let Some(ctx) = crate::utils::tui::get_step_context("Guardar credenciales") {
+            tui.print_context(&ctx)?;
+        }
         Confirm::new()
             .with_prompt("¿Guardar las credenciales en un archivo?")
             .default(false)
@@ -486,27 +521,42 @@ fn maybe_save_credentials(
     Ok(Some(path))
 }
 
-fn select_template_interactive(cache: &CacheManager) -> Result<String> {
+fn select_template_interactive(cache: &CacheManager, tui: &Tui) -> Result<String> {
     let templates = cache.get_available_templates();
 
     if templates.is_empty() {
         anyhow::bail!("No templates found. Run 'devc update' to download templates.");
     }
 
-    println!("{}", "Select a template:".bold());
+    loop {
+        let mut items: Vec<String> = templates.clone();
+        items.push("❓  Ayuda — ¿Qué es un template?".to_string());
 
-    let selection = Select::new()
-        .items(&templates)
-        .default(0)
-        .interact()
-        .context("Failed to display template selection")?;
+        println!("{}", "Select a template:".bold());
 
-    let selected = &templates[selection];
-    println!("{}", format!("  ✓ {}", selected).green());
-    Ok(selected.to_string())
+        let selection = Select::new()
+            .items(&items)
+            .default(0)
+            .interact()
+            .context("Failed to display template selection")?;
+
+        if selection == templates.len() {
+            tui.show_help_box("Selección de template")?;
+            tui.draw_frame("Selección de template", None)?;
+            continue;
+        }
+
+        let selected = &templates[selection];
+        println!("{}", format!("  ✓ {}", selected).green());
+        return Ok(selected.to_string());
+    }
 }
 
-fn prompt_project_name() -> Result<String> {
+fn prompt_project_name(tui: &Tui) -> Result<String> {
+    if let Some(ctx) = crate::utils::tui::get_step_context("Nombre del proyecto") {
+        tui.print_context(&ctx)?;
+    }
+
     let default_name = std::env::current_dir()
         .ok()
         .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_string()))
@@ -522,7 +572,11 @@ fn prompt_project_name() -> Result<String> {
     Ok(input)
 }
 
-fn prompt_target_directory() -> Result<std::path::PathBuf> {
+fn prompt_target_directory(tui: &Tui) -> Result<std::path::PathBuf> {
+    if let Some(ctx) = crate::utils::tui::get_step_context("Ubicación del devcontainer") {
+        tui.print_context(&ctx)?;
+    }
+
     let current_dir = std::env::current_dir()
         .context("Could not determine current directory")?;
     let default_path = current_dir.to_string_lossy().to_string();
@@ -554,7 +608,10 @@ fn prompt_target_directory() -> Result<std::path::PathBuf> {
     Ok(target)
 }
 
-fn prompt_git_name() -> String {
+fn prompt_git_name(tui: &Tui) -> String {
+    if let Some(ctx) = crate::utils::tui::get_step_context("Configuración de Git") {
+        let _ = tui.print_context(&ctx);
+    }
     let input: String = Input::new()
         .with_prompt("Git User Name")
         .default("user".to_string())
@@ -564,7 +621,10 @@ fn prompt_git_name() -> String {
     input
 }
 
-fn prompt_git_email() -> String {
+fn prompt_git_email(tui: &Tui) -> String {
+    if let Some(ctx) = crate::utils::tui::get_step_context("Configuración de Git") {
+        let _ = tui.print_context(&ctx);
+    }
     let input: String = Input::new()
         .with_prompt("Git User Email")
         .default("user@example.com".to_string())
@@ -608,6 +668,9 @@ fn prompt_custom_versions(
     }
 
     tui.draw_frame("Personalizar versiones", Some(template))?;
+    if let Some(ctx) = crate::utils::tui::get_step_context("Personalizar versiones") {
+        tui.print_context(&ctx)?;
+    }
     let customize = Confirm::new()
         .with_prompt("¿Quieres personalizar alguna versión?")
         .default(false)

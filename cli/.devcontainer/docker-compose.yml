@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        ANDROID_API_LEVEL: ${ANDROID_API_LEVEL:-34}
+        BUILD_TOOLS_VERSION: ${BUILD_TOOLS_VERSION:-34.0.0}
+        NDK_VERSION: ${NDK_VERSION:-26.1.10909125}
+        CMDLINE_TOOLS_VERSION: ${CMDLINE_TOOLS_VERSION:-7302050_latest}
+        FLUTTER_BRANCH: ${FLUTTER_BRANCH:-stable}
+        __SECURITY_ARGS__
+
+    volumes:
+      - ..:/workspace:cached
+
+    command: sleep infinity
+
+    network_mode: host
