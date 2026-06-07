@@ -233,10 +233,11 @@ impl ConfigMerger {
     }
 
     pub fn update_docker_compose(
-        devcontainer_dir: &Path,
+        project_dir: &Path,
         project_name: &str,
         security: &SecurityConfig,
     ) -> Result<()> {
+        let devcontainer_dir = project_dir.join(".devcontainer");
         let compose_path = devcontainer_dir.join("docker-compose.yml");
         
         if !compose_path.exists() {
@@ -260,7 +261,17 @@ impl ConfigMerger {
         );
 
         if content.contains("__SECURITY_ARGS__") {
-            content = content.replace("__SECURITY_ARGS__", &security_block);
+            // Replace the entire line containing the placeholder to preserve indentation
+            let lines: Vec<&str> = content.lines().collect();
+            let mut new_lines = Vec::new();
+            for line in lines {
+                if line.contains("__SECURITY_ARGS__") {
+                    new_lines.push(security_block.clone());
+                } else {
+                    new_lines.push(line.to_string());
+                }
+            }
+            content = new_lines.join("\n");
         } else if content.contains("args:") {
             // Try to inject after the last build arg
             // Find "args:" section and append security args
@@ -285,6 +296,42 @@ impl ConfigMerger {
                 }
                 content.insert_str(insert_idx, &format!("\n{}", security_block));
             }
+        }
+
+        // Handle network_mode placeholder
+        if content.contains("__NETWORK_MODE__") {
+            if security.network_mode == "bridge" {
+                // Bridge is the default; remove the line to keep compose clean
+                let lines: Vec<&str> = content.lines().collect();
+                let mut new_lines = Vec::new();
+                for line in lines {
+                    if !line.contains("__NETWORK_MODE__") {
+                        new_lines.push(line.to_string());
+                    }
+                }
+                content = new_lines.join("\n");
+            } else {
+                content = content.replace("__NETWORK_MODE__", &format!("network_mode: {}", security.network_mode));
+            }
+        }
+
+        // Handle external shared network placeholders
+        if let Some(net_name) = &security.network_name {
+            let service_block = format!(
+                "    networks:\n      - {}\n",
+                net_name
+            );
+            let top_block = format!(
+                "\nnetworks:\n  {}:\n    external: true\n",
+                net_name
+            );
+            content = content.replace("    __NETWORKS_SERVICE__\n", &service_block);
+            content = content.replace("__NETWORKS_TOP__\n", &top_block);
+            content = content.replace("__NETWORKS_TOP__", &top_block);
+        } else {
+            content = content.replace("    __NETWORKS_SERVICE__\n", "");
+            content = content.replace("__NETWORKS_TOP__\n", "");
+            content = content.replace("__NETWORKS_TOP__", "");
         }
 
         fs::write(&compose_path, content)?;

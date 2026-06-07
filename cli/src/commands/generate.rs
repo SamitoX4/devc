@@ -1,11 +1,13 @@
 use anyhow::{Context, Result};
 use colored::*;
 use dialoguer::{Confirm, Input, MultiSelect, Password, Select};
+use std::io::Write;
 use crate::utils::cache::CacheManager;
 use crate::utils::copier::TemplateCopier;
 use crate::utils::credentials;
 use crate::utils::merger::ConfigMerger;
 use crate::utils::password;
+use crate::utils::tui::Tui;
 use crate::utils::SecurityConfig;
 
 pub async fn run(
@@ -18,21 +20,19 @@ pub async fn run(
     remote_password: Option<&str>,
     container_password: Option<&str>,
     sudo_mode: Option<&str>,
+    network_mode: Option<&str>,
     save_credentials_flag: Option<&str>,
     cache: &mut CacheManager,
 ) -> Result<()> {
-    println!();
-    println!("{}", "DevContainer Generator".bold().cyan());
-    println!("{}", "====================".cyan());
-    println!();
+    let tui = Tui::new("DevContainer Generator");
 
     // 1. Template
     let selected_template = if let Some(t) = template {
         println!("{}", format!("  Template: {}", t).dimmed());
         t.to_string()
     } else {
-        print_status_bar("Selección de template", None);
-        select_template_interactive(cache)?
+        tui.draw_frame("Selección de template", None)?;
+        select_template_interactive(cache, &tui)?
     };
 
     // 2. Project Name
@@ -40,13 +40,13 @@ pub async fn run(
         println!("{}", format!("  Project: {}", n).dimmed());
         n.to_string()
     } else {
-        print_status_bar("Nombre del proyecto", Some(&selected_template));
-        prompt_project_name()?
+        tui.draw_frame("Nombre del proyecto", Some(&selected_template))?;
+        prompt_project_name(&tui)?
     };
 
     // 3. Target Directory
-    print_status_bar("Ubicación del devcontainer", Some(&selected_template));
-    let target_dir = prompt_target_directory()?;
+    tui.draw_frame("Ubicación del devcontainer", Some(&selected_template))?;
+    let target_dir = prompt_target_directory(&tui)?;
 
     // 4. Git Config
     let git_config = cache.get_git_config();
@@ -54,23 +54,17 @@ pub async fn run(
     let final_git_name = if let Some(n) = git_name {
         println!("{}", format!("  Git Name: {}", n).dimmed());
         Some(n.to_string())
-    } else if let Some(n) = git_config.name.as_ref() {
-        println!("{}", format!("  Git Name: {} (from config)", n).dimmed());
-        Some(n.clone())
     } else {
-        print_status_bar("Configuración de Git", Some(&selected_template));
-        Some(prompt_git_name())
+        tui.draw_frame("Configuración de Git", Some(&selected_template))?;
+        Some(prompt_git_name(&tui, git_config.name.as_deref())?)
     };
 
     let final_git_email = if let Some(e) = git_email {
         println!("{}", format!("  Git Email: {}", e).dimmed());
         Some(e.to_string())
-    } else if let Some(e) = git_config.email.as_ref() {
-        println!("{}", format!("  Git Email: {} (from config)", e).dimmed());
-        Some(e.clone())
     } else {
-        print_status_bar("Configuración de Git", Some(&selected_template));
-        Some(prompt_git_email())
+        tui.draw_frame("Configuración de Git", Some(&selected_template))?;
+        Some(prompt_git_email(&tui, git_config.email.as_deref())?)
     };
 
     if let (Some(n), Some(e)) = (&final_git_name, &final_git_email) {
@@ -78,7 +72,7 @@ pub async fn run(
     }
 
     // 5. Security Config
-    print_status_bar("Configuración de seguridad", Some(&selected_template));
+    tui.draw_frame("Configuración de seguridad", Some(&selected_template))?;
     let security = build_security_config(
         &selected_template,
         security_mode,
@@ -86,7 +80,11 @@ pub async fn run(
         remote_password,
         container_password,
         sudo_mode,
+        network_mode,
+        &tui,
     )?;
+
+    tui.cleanup()?;
 
     println!();
     println!("{}", format!("Generating {} devcontainer...", selected_template).cyan());
@@ -108,7 +106,7 @@ pub async fn run(
 
     let dockerfile_path = target_dir.join(".devcontainer").join("Dockerfile");
     if dockerfile_path.exists() {
-        if let Some(custom_args) = prompt_custom_versions(&dockerfile_path)? {
+        if let Some(custom_args) = prompt_custom_versions(&dockerfile_path, &selected_template, &tui)? {
             apply_custom_versions(&dockerfile_path, &custom_args)?;
             apply_custom_versions_to_config_files(&target_dir, &custom_args)?;
             println!();
@@ -133,6 +131,7 @@ pub async fn run(
             &selected_template,
             &security,
             save_credentials_flag,
+            &tui,
         )? {
             println!();
             println!("{}", format!("✓ Credenciales guardadas en: {}", saved_path.display()).green());
@@ -162,6 +161,8 @@ fn get_security_defaults(template: &str) -> SecurityConfig {
             remote_password: password::generate_12(),
             container_password: password::generate_12(),
             sudo_mode: "none".to_string(),
+            network_mode: "bridge".to_string(),
+            network_name: None,
         }
     } else if template == "nodejs" || template == "android/react-native" {
         SecurityConfig {
@@ -171,6 +172,8 @@ fn get_security_defaults(template: &str) -> SecurityConfig {
             remote_password: password::generate_12(),
             container_password: password::generate_12(),
             sudo_mode: "nopasswd".to_string(),
+            network_mode: "bridge".to_string(),
+            network_name: None,
         }
     } else {
         SecurityConfig {
@@ -180,6 +183,8 @@ fn get_security_defaults(template: &str) -> SecurityConfig {
             remote_password: password::generate_12(),
             container_password: password::generate_12(),
             sudo_mode: "nopasswd".to_string(),
+            network_mode: "bridge".to_string(),
+            network_name: None,
         }
     }
 }
@@ -191,8 +196,17 @@ fn build_security_config(
     remote_pass_flag: Option<&str>,
     container_pass_flag: Option<&str>,
     sudo_flag: Option<&str>,
+    network_mode_flag: Option<&str>,
+    tui: &Tui,
 ) -> Result<SecurityConfig> {
     let defaults = get_security_defaults(template);
+
+    // Network mode (used in both interactive and non-interactive)
+    let (network_mode, network_name) = if let Some(nm) = network_mode_flag {
+        (nm.to_lowercase(), None)
+    } else {
+        prompt_network_mode(&defaults.network_mode, template, tui)?
+    };
 
     // If all flags are provided, use them directly (non-interactive mode)
     if let Some(mode) = mode_flag {
@@ -227,16 +241,22 @@ fn build_security_config(
             remote_password,
             container_password,
             sudo_mode,
+            network_mode,
+            network_name,
         });
     }
 
     // Interactive mode
-    let mode = prompt_security_mode(&defaults.mode, template)?;
+    let mode = prompt_security_mode(&defaults.mode, template, tui)?;
 
     if mode == "root" {
         let container_password = if let Some(pass) = container_pass_flag {
             pass.to_string()
         } else {
+            tui.draw_frame("Contraseña de root", Some(template))?;
+            if let Some(ctx) = crate::utils::tui::get_step_context("Contraseña de root") {
+                tui.print_context(&ctx)?;
+            }
             prompt_password("root del contenedor")?
         };
 
@@ -247,19 +267,21 @@ fn build_security_config(
             remote_password: container_password.clone(),
             container_password,
             sudo_mode: "none".to_string(),
+            network_mode,
+            network_name,
         });
     }
 
     let remote_user = if let Some(user) = user_flag {
         user.to_string()
     } else {
-        prompt_remote_user(&defaults.remote_user, template)?
+        prompt_remote_user(&defaults.remote_user, template, tui)?
     };
 
     let (remote_password, container_password) = if remote_pass_flag.is_some() && container_pass_flag.is_some() {
         (remote_pass_flag.unwrap().to_string(), container_pass_flag.unwrap().to_string())
     } else {
-        prompt_passwords(&remote_user, template)?
+        prompt_passwords(&remote_user, template, tui)?
     };
 
     let sudo_mode = if let Some(sudo) = sudo_flag {
@@ -270,7 +292,7 @@ fn build_security_config(
             "secure" => "none",
             _ => &defaults.sudo_mode,
         };
-        prompt_sudo_mode(default_sudo, template)?
+        prompt_sudo_mode(default_sudo, template, tui)?
     };
 
     let container_user = Some(remote_user.clone());
@@ -282,37 +304,12 @@ fn build_security_config(
         remote_password,
         container_password,
         sudo_mode,
+        network_mode,
+        network_name,
     })
 }
 
-fn print_status_bar(step: &str, template: Option<&str>) {
-    let width = 70;
-    let separator = "─".repeat(width);
-    
-    let context = if let Some(t) = template {
-        format!("Template: {}", t.cyan())
-    } else {
-        "Seleccionando template...".to_string()
-    };
-    
-    println!();
-    println!("{}", separator.dimmed());
-    println!(
-        "  {} {}  │  {}  │  {}  {}  │  {} {}",
-        "Paso:".dimmed(),
-        step.yellow(),
-        context,
-        "Navegar:".dimmed(),
-        "↑/↓".cyan(),
-        "Seleccionar:".dimmed(),
-        "Enter".cyan()
-    );
-    println!("{}", separator.dimmed());
-}
-
-fn prompt_security_mode(default: &str, template: &str) -> Result<String> {
-    print_status_bar("Configuración de seguridad", Some(template));
-    
+fn prompt_security_mode(default: &str, template: &str, tui: &Tui) -> Result<String> {
     let options = vec![
         "Modo Desarrollador (recomendado) — usuario con sudo sin contraseña",
         "Modo Seguro — usuario sin sudo",
@@ -327,45 +324,70 @@ fn prompt_security_mode(default: &str, template: &str) -> Result<String> {
         _ => 0,
     };
 
-    println!("{}", "Configuración de Seguridad del Contenedor".bold());
-    println!("{}", "===========================================".bold());
-    println!();
+    loop {
+        tui.draw_frame("Configuración de seguridad", Some(template))?;
+        println!("{}", "Configuración de Seguridad del Contenedor".bold());
+        println!("{}", "===========================================".bold());
+        println!();
 
-    let selection = Select::new()
-        .with_prompt("Elige el perfil de seguridad")
-        .items(&options)
-        .default(default_idx)
-        .interact()
-        .context("Failed to display security mode selection")?;
+        let mut items = options.clone();
+        items.push("❓  Ayuda");
 
-    let mode = match selection {
-        0 => "developer",
-        1 => "secure",
-        2 => "root",
-        3 => "custom",
-        _ => "developer",
-    };
+        let selection = Select::new()
+            .with_prompt("Elige el perfil de seguridad")
+            .items(&items)
+            .default(default_idx)
+            .interact()
+            .context("Failed to display security mode selection")?;
 
-    println!("{}", format!("  ✓ Modo: {}", mode).green());
-    Ok(mode.to_string())
+        if selection == options.len() {
+            tui.show_help_box("Configuración de seguridad")?;
+            continue;
+        }
+
+        let mode = match selection {
+            0 => "developer",
+            1 => "secure",
+            2 => "root",
+            3 => "custom",
+            _ => "developer",
+        };
+
+        println!("{}", format!("  ✓ Modo: {}", mode).green());
+        return Ok(mode.to_string());
+    }
 }
 
-fn prompt_remote_user(default: &str, template: &str) -> Result<String> {
-    print_status_bar("Usuario de desarrollo", Some(template));
-    
-    let input: String = Input::new()
-        .with_prompt("Nombre de usuario de desarrollo")
-        .default(default.to_string())
-        .interact_text()
-        .context("Failed to read remote user name")?;
+fn prompt_remote_user(default: &str, template: &str, tui: &Tui) -> Result<String> {
+    loop {
+        tui.draw_frame("Usuario de desarrollo", Some(template))?;
+        if let Some(ctx) = crate::utils::tui::get_step_context("Usuario de desarrollo") {
+            tui.print_context(&ctx)?;
+        }
+        println!("  {} {}", "Tip:".italic().dimmed(), "Escribí ?help y presioná Enter para ver ayuda detallada".italic().dimmed());
 
-    println!("{}", format!("  ✓ Usuario: {}", input).green());
-    Ok(input)
+        let input: String = Input::new()
+            .with_prompt("Nombre de usuario de desarrollo")
+            .default(default.to_string())
+            .interact_text()
+            .context("Failed to read remote user name")?;
+
+        if input.trim() == "?help" {
+            tui.show_help_box("Usuario de desarrollo")?;
+            continue;
+        }
+
+        println!("{}", format!("  ✓ Usuario: {}", input).green());
+        return Ok(input);
+    }
 }
 
-fn prompt_passwords(remote_user: &str, template: &str) -> Result<(String, String)> {
-    print_status_bar("Contraseñas del contenedor", Some(template));
-    
+fn prompt_passwords(remote_user: &str, template: &str, tui: &Tui) -> Result<(String, String)> {
+    tui.draw_frame("Contraseñas del contenedor", Some(template))?;
+    if let Some(ctx) = crate::utils::tui::get_step_context("Contraseñas del contenedor") {
+        tui.print_context(&ctx)?;
+    }
+
     let use_custom = Confirm::new()
         .with_prompt("¿Configurar contraseñas personalizadas?")
         .default(false)
@@ -373,7 +395,16 @@ fn prompt_passwords(remote_user: &str, template: &str) -> Result<(String, String
         .context("Failed to display password confirmation")?;
 
     if use_custom {
+        tui.draw_frame("Contraseña de root", Some(template))?;
+        if let Some(ctx) = crate::utils::tui::get_step_context("Contraseña de root") {
+            tui.print_context(&ctx)?;
+        }
         let container_password = prompt_password("root del contenedor")?;
+        let step = format!("Contraseña de {}", remote_user);
+        tui.draw_frame(&step, Some(template))?;
+        if let Some(ctx) = crate::utils::tui::get_step_context("Contraseña de root") {
+            tui.print_context(&ctx)?;
+        }
         let remote_password = prompt_password(remote_user)?;
         Ok((remote_password, container_password))
     } else {
@@ -385,30 +416,46 @@ fn prompt_passwords(remote_user: &str, template: &str) -> Result<(String, String
 }
 
 fn prompt_password(for_user: &str) -> Result<String> {
-    let pass = Password::new()
-        .with_prompt(format!("Contraseña para {}", for_user))
-        .interact()
-        .context("Failed to read password")?;
+    loop {
+        let pass = match Password::new()
+            .with_prompt(format!("Contraseña para {} (Enter para auto-generar)", for_user))
+            .allow_empty_password(true)
+            .interact()
+        {
+            Ok(p) => p,
+            Err(_) => anyhow::bail!("Prompt cancelado por el usuario"),
+        };
 
-    let confirm = Password::new()
-        .with_prompt(format!("Confirmar contraseña para {}", for_user))
-        .interact()
-        .context("Failed to read password confirmation")?;
+        if pass.is_empty() {
+            let generated = password::generate_12();
+            println!("{}", format!("  ✓ Contraseña auto-generada para {}: {}", for_user, generated.cyan()).green());
+            return Ok(generated);
+        }
 
-    if pass != confirm {
-        anyhow::bail!("Las contraseñas no coinciden");
+        if pass.len() < 6 {
+            println!("{}", "  ✗ La contraseña debe tener al menos 6 caracteres. Intentá de nuevo.".red());
+            continue;
+        }
+
+        let confirm = match Password::new()
+            .with_prompt(format!("Confirmar contraseña para {}", for_user))
+            .allow_empty_password(true)
+            .interact()
+        {
+            Ok(p) => p,
+            Err(_) => anyhow::bail!("Prompt cancelado por el usuario"),
+        };
+
+        if pass != confirm {
+            println!("{}", "  ✗ Las contraseñas no coinciden. Intentá de nuevo.".red());
+            continue;
+        }
+
+        return Ok(pass);
     }
-
-    if pass.len() < 6 {
-        anyhow::bail!("La contraseña debe tener al menos 6 caracteres");
-    }
-
-    Ok(pass)
 }
 
-fn prompt_sudo_mode(default: &str, template: &str) -> Result<String> {
-    print_status_bar("Privilegios sudo", Some(template));
-    
+fn prompt_sudo_mode(default: &str, template: &str, tui: &Tui) -> Result<String> {
     let options = vec![
         "sudo sin contraseña (NOPASSWD:ALL)",
         "sudo con contraseña",
@@ -422,22 +469,221 @@ fn prompt_sudo_mode(default: &str, template: &str) -> Result<String> {
         _ => 0,
     };
 
-    let selection = Select::new()
-        .with_prompt("Modo sudo para el usuario de desarrollo")
-        .items(&options)
-        .default(default_idx)
-        .interact()
-        .context("Failed to display sudo mode selection")?;
+    loop {
+        tui.draw_frame("Privilegios sudo", Some(template))?;
 
-    let mode = match selection {
-        0 => "nopasswd",
-        1 => "password",
-        2 => "none",
-        _ => "nopasswd",
+        let mut items = options.clone();
+        items.push("❓  Ayuda");
+
+        let selection = Select::new()
+            .with_prompt("Modo sudo para el usuario de desarrollo")
+            .items(&items)
+            .default(default_idx)
+            .interact()
+            .context("Failed to display sudo mode selection")?;
+
+        if selection == options.len() {
+            tui.show_help_box("Privilegios sudo")?;
+            continue;
+        }
+
+        let mode = match selection {
+            0 => "nopasswd",
+            1 => "password",
+            2 => "none",
+            _ => "nopasswd",
+        };
+
+        println!("{}", format!("  ✓ Sudo: {}", mode).green());
+        return Ok(mode.to_string());
+    }
+}
+
+fn prompt_network_mode(default: &str, template: &str, tui: &Tui) -> Result<(String, Option<String>)> {
+    let options = vec![
+        "Bridge (recomendado) — aislamiento de red con port mapping",
+        "Host — máximo rendimiento, sin aislamiento (solo Linux)",
+        "None — contenedor sin acceso a red",
+    ];
+
+    let default_idx = match default {
+        "bridge" => 0,
+        "host" => 1,
+        "none" => 2,
+        _ => 0,
     };
 
-    println!("{}", format!("  ✓ Sudo: {}", mode).green());
-    Ok(mode.to_string())
+    let mode = loop {
+        tui.draw_frame("Configuración de red", Some(template))?;
+        println!("{}", "Modo de red del contenedor".bold());
+        println!("{}", "==========================".bold());
+        println!();
+
+        let mut items = options.clone();
+        items.push("❓  Ayuda");
+
+        let selection = Select::new()
+            .with_prompt("Elige el modo de red")
+            .items(&items)
+            .default(default_idx)
+            .interact()
+            .context("Failed to display network mode selection")?;
+
+        if selection == options.len() {
+            tui.show_help_box("Configuración de red")?;
+            continue;
+        }
+
+        let mode = match selection {
+            0 => "bridge",
+            1 => "host",
+            2 => "none",
+            _ => "bridge",
+        };
+
+        println!("{}", format!("  ✓ Red: {}", mode).green());
+        break mode;
+    };
+
+    // If bridge, ask about external shared network
+    let network_name = if mode == "bridge" {
+        tui.draw_frame("Red compartida", Some(template))?;
+        let use_shared = Confirm::new()
+            .with_prompt("¿Querés unir este devcontainer a una red externa compartida? (útil para conectar con servicios en otros docker-compose)")
+            .default(false)
+            .interact()
+            .context("Failed to display shared network confirmation")?;
+
+        if use_shared {
+            let input: String = Input::new()
+                .with_prompt("Nombre de la red compartida")
+                .default("shared_net".to_string())
+                .interact_text()
+                .context("Failed to read shared network name")?;
+            let net_name = input.trim().to_string();
+            // Verify and create immediately after naming
+            ensure_docker_network(&net_name, template)?;
+            Some(net_name)
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    Ok((mode.to_string(), network_name))
+}
+
+fn read_line_trimmed(prompt: &str) -> Result<String> {
+    use std::io::{self, Write};
+    print!("{}", prompt);
+    io::stdout().flush()?;
+    let mut buf = String::new();
+    io::stdin().read_line(&mut buf)?;
+    Ok(buf.trim().to_string())
+}
+
+fn ensure_docker_network(network_name: &str, _template: &str) -> Result<()> {
+    use std::process::Command;
+
+    println!();
+    println!("{}", "🔗 Configuración de red compartida".bold().cyan());
+    println!("{}", "───────────────────────────────────".cyan());
+
+    // Check if docker is available
+    let docker_check = Command::new("docker")
+        .arg("--version")
+        .output();
+
+    if docker_check.is_err() {
+        println!("{}", "  ⚠ Docker no detectado. Creá la red manualmente:".yellow());
+        println!("     docker network create {}", network_name.cyan());
+        return Ok(());
+    }
+
+    // Check if network already exists
+    let network_exists = Command::new("docker")
+        .args(["network", "ls", "--filter", &format!("name={}", network_name), "--format", "{{.Name}}"])
+        .output()
+        .map(|o| {
+            let stdout = String::from_utf8_lossy(&o.stdout);
+            stdout.trim() == network_name
+        })
+        .unwrap_or(false);
+
+    if network_exists {
+        println!("{}", format!("  ✓ La red '{}' ya existe", network_name).green());
+        return Ok(());
+    }
+
+    // Ask if user wants to create it
+    println!();
+    let answer = read_line_trimmed(&format!("La red '{}' no existe. ¿Crearla? [S/n]: ", network_name))?;
+    if !answer.is_empty() && !answer.to_lowercase().starts_with('s') {
+        println!("{}", "  ⚠ Recordá crear la red antes de levantar el contenedor:".yellow());
+        println!("     docker network create {}", network_name.cyan());
+        return Ok(());
+    }
+
+    // Try creating without sudo
+    let create_result = Command::new("docker")
+        .args(["network", "create", network_name])
+        .output();
+
+    match create_result {
+        Ok(output) if output.status.success() => {
+            println!("{}", format!("  ✓ Red '{}' creada exitosamente", network_name).green());
+            return Ok(());
+        }
+        Ok(output) => {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            println!("{}", format!("  ✗ Error al crear la red: {}", stderr.trim()).red());
+        }
+        Err(e) => {
+            println!("{}", format!("  ✗ Error al ejecutar docker: {}", e).red());
+        }
+    }
+
+    // If we got here, creation failed. Ask about sudo.
+    println!();
+    let sudo_answer = read_line_trimmed("¿Probamos con sudo? [S/n]: ")?;
+    if !sudo_answer.is_empty() && !sudo_answer.to_lowercase().starts_with('s') {
+        println!("{}", "  ⚠ Creá la red manualmente:".yellow());
+        println!("     sudo docker network create {}", network_name.cyan());
+        return Ok(());
+    }
+
+    // Ask for sudo password
+    print!("Contraseña de sudo: ");
+    std::io::stdout().flush()?;
+    let sudo_pass = rpassword::read_password().context("Failed to read sudo password")?;
+
+    let mut child = Command::new("sudo")
+        .args(["-S", "docker", "network", "create", network_name])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .context("Failed to spawn sudo docker network create")?;
+
+    if let Some(stdin) = child.stdin.take() {
+        use std::io::Write;
+        let mut stdin = stdin;
+        writeln!(stdin, "{}", sudo_pass).context("Failed to write sudo password")?;
+    }
+
+    let output = child.wait_with_output().context("Failed to wait for sudo command")?;
+
+    if output.status.success() {
+        println!("{}", format!("  ✓ Red '{}' creada con sudo", network_name).green());
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        println!("{}", format!("  ✗ Falló sudo: {}", stderr.trim()).red());
+        println!("{}", "  ⚠ Creá la red manualmente:".yellow());
+        println!("     sudo docker network create {}", network_name.cyan());
+    }
+
+    Ok(())
 }
 
 fn maybe_save_credentials(
@@ -445,12 +691,17 @@ fn maybe_save_credentials(
     template: &str,
     security: &SecurityConfig,
     save_credentials_flag: Option<&str>,
+    tui: &Tui,
 ) -> Result<Option<std::path::PathBuf>> {
     let should_save = if let Some(flag) = save_credentials_flag {
         // Non-empty flag means yes (value is the path or "default")
         !flag.is_empty()
     } else {
         // Interactive prompt
+        tui.draw_frame("Guardar credenciales", Some(template))?;
+        if let Some(ctx) = crate::utils::tui::get_step_context("Guardar credenciales") {
+            tui.print_context(&ctx)?;
+        }
         Confirm::new()
             .with_prompt("¿Guardar las credenciales en un archivo?")
             .default(false)
@@ -469,6 +720,7 @@ fn maybe_save_credentials(
             std::path::PathBuf::from(flag)
         }
     } else {
+        tui.draw_frame("Ruta del archivo de credenciales", Some(template))?;
         let default = credentials::default_credentials_path(project_name);
         let input: String = Input::new()
             .with_prompt("Ruta del archivo de credenciales")
@@ -484,27 +736,42 @@ fn maybe_save_credentials(
     Ok(Some(path))
 }
 
-fn select_template_interactive(cache: &CacheManager) -> Result<String> {
+fn select_template_interactive(cache: &CacheManager, tui: &Tui) -> Result<String> {
     let templates = cache.get_available_templates();
 
     if templates.is_empty() {
         anyhow::bail!("No templates found. Run 'devc update' to download templates.");
     }
 
-    println!("{}", "Select a template:".bold());
+    loop {
+        let mut items: Vec<String> = templates.clone();
+        items.push("❓  Ayuda — ¿Qué es un template?".to_string());
 
-    let selection = Select::new()
-        .items(&templates)
-        .default(0)
-        .interact()
-        .context("Failed to display template selection")?;
+        println!("{}", "Select a template:".bold());
 
-    let selected = &templates[selection];
-    println!("{}", format!("  ✓ {}", selected).green());
-    Ok(selected.to_string())
+        let selection = Select::new()
+            .items(&items)
+            .default(0)
+            .interact()
+            .context("Failed to display template selection")?;
+
+        if selection == templates.len() {
+            tui.show_help_box("Selección de template")?;
+            tui.draw_frame("Selección de template", None)?;
+            continue;
+        }
+
+        let selected = &templates[selection];
+        println!("{}", format!("  ✓ {}", selected).green());
+        return Ok(selected.to_string());
+    }
 }
 
-fn prompt_project_name() -> Result<String> {
+fn prompt_project_name(tui: &Tui) -> Result<String> {
+    if let Some(ctx) = crate::utils::tui::get_step_context("Nombre del proyecto") {
+        tui.print_context(&ctx)?;
+    }
+
     let default_name = std::env::current_dir()
         .ok()
         .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_string()))
@@ -520,7 +787,11 @@ fn prompt_project_name() -> Result<String> {
     Ok(input)
 }
 
-fn prompt_target_directory() -> Result<std::path::PathBuf> {
+fn prompt_target_directory(tui: &Tui) -> Result<std::path::PathBuf> {
+    if let Some(ctx) = crate::utils::tui::get_step_context("Ubicación del devcontainer") {
+        tui.print_context(&ctx)?;
+    }
+
     let current_dir = std::env::current_dir()
         .context("Could not determine current directory")?;
     let default_path = current_dir.to_string_lossy().to_string();
@@ -552,27 +823,59 @@ fn prompt_target_directory() -> Result<std::path::PathBuf> {
     Ok(target)
 }
 
-fn prompt_git_name() -> String {
-    let input: String = Input::new()
-        .with_prompt("Git User Name")
-        .default("user".to_string())
-        .interact_text()
-        .unwrap_or_else(|_| "user".to_string());
+fn prompt_git_name(tui: &Tui, saved: Option<&str>) -> Result<String> {
+    if let Some(ctx) = crate::utils::tui::get_step_context("Configuración de Git") {
+        let _ = tui.print_context(&ctx);
+    }
+    loop {
+        let mut input = Input::new()
+            .with_prompt("Git User Name");
+        if let Some(d) = saved {
+            input = input.default(d.to_string());
+        }
+        let name: String = input
+            .interact_text()
+            .context("Failed to read git name")?;
 
-    input
+        if name.trim().is_empty() {
+            println!("{}", "  ✗ El nombre de Git no puede estar vacío. Intentá de nuevo.".red());
+            continue;
+        }
+        return Ok(name.trim().to_string());
+    }
 }
 
-fn prompt_git_email() -> String {
-    let input: String = Input::new()
-        .with_prompt("Git User Email")
-        .default("user@example.com".to_string())
-        .interact_text()
-        .unwrap_or_else(|_| "user@example.com".to_string());
+fn prompt_git_email(tui: &Tui, saved: Option<&str>) -> Result<String> {
+    if let Some(ctx) = crate::utils::tui::get_step_context("Configuración de Git") {
+        let _ = tui.print_context(&ctx);
+    }
+    loop {
+        let mut input = Input::new()
+            .with_prompt("Git User Email");
+        if let Some(d) = saved {
+            input = input.default(d.to_string());
+        }
+        let email: String = input
+            .interact_text()
+            .context("Failed to read git email")?;
 
-    input
+        if email.trim().is_empty() {
+            println!("{}", "  ✗ El email de Git no puede estar vacío. Intentá de nuevo.".red());
+            continue;
+        }
+        if !email.contains('@') {
+            println!("{}", "  ✗ El email debe contener @. Intentá de nuevo.".red());
+            continue;
+        }
+        return Ok(email.trim().to_string());
+    }
 }
 
-fn prompt_custom_versions(dockerfile_path: &std::path::Path) -> Result<Option<Vec<(String, String)>>> {
+fn prompt_custom_versions(
+    dockerfile_path: &std::path::Path,
+    template: &str,
+    tui: &Tui,
+) -> Result<Option<Vec<(String, String)>>> {
     let content = std::fs::read_to_string(dockerfile_path)?;
     let mut args = Vec::new();
 
@@ -601,6 +904,10 @@ fn prompt_custom_versions(dockerfile_path: &std::path::Path) -> Result<Option<Ve
         println!("  {} = {}", name.dimmed(), value.cyan());
     }
 
+    tui.draw_frame("Personalizar versiones", Some(template))?;
+    if let Some(ctx) = crate::utils::tui::get_step_context("Personalizar versiones") {
+        tui.print_context(&ctx)?;
+    }
     let customize = Confirm::new()
         .with_prompt("¿Quieres personalizar alguna versión?")
         .default(false)
@@ -632,6 +939,8 @@ fn prompt_custom_versions(dockerfile_path: &std::path::Path) -> Result<Option<Ve
                     defaults[idx] = true;
                 }
 
+                let step = format!("Versión de {}", name);
+                tui.draw_frame(&step, Some(template))?;
                 let picked = MultiSelect::new()
                     .with_prompt(format!("{} (space to select, enter to confirm)", name))
                     .items(&options)
@@ -657,6 +966,8 @@ fn prompt_custom_versions(dockerfile_path: &std::path::Path) -> Result<Option<Ve
                         .unwrap_or(0)
                 });
 
+            let step = format!("Versión de {}", name);
+            tui.draw_frame(&step, Some(template))?;
             let selection = Select::new()
                 .with_prompt(format!("{}", name))
                 .items(&options)
@@ -666,6 +977,8 @@ fn prompt_custom_versions(dockerfile_path: &std::path::Path) -> Result<Option<Ve
 
             options[selection].clone()
         } else {
+            let step = format!("Versión de {}", name);
+            tui.draw_frame(&step, Some(template))?;
             let input: String = Input::new()
                 .with_prompt(format!("{} (Enter para mantener {})", name, suggested_default))
                 .allow_empty(true)
