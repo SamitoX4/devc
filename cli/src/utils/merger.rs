@@ -297,6 +297,23 @@ impl ConfigMerger {
             }
         }
 
+        // Handle external shared network placeholders
+        if let Some(net_name) = &security.network_name {
+            let service_block = format!(
+                "    networks:\n      - {}\n",
+                net_name
+            );
+            let top_block = format!(
+                "\nnetworks:\n  {}:\n    external: true\n",
+                net_name
+            );
+            content = content.replace("    __NETWORKS_SERVICE__\n", &service_block);
+            content = content.replace("__NETWORKS_TOP__\n", &top_block);
+        } else {
+            content = content.replace("    __NETWORKS_SERVICE__\n", "");
+            content = content.replace("__NETWORKS_TOP__\n", "");
+        }
+
         fs::write(&compose_path, content)?;
         Ok(())
     }

@@ -16,6 +16,7 @@ pub struct SecurityConfig {
     pub container_password: String,
     pub sudo_mode: String,      // nopasswd | password | none
     pub network_mode: String,   // bridge | host | none
+    pub network_name: Option<String>, // nombre de red externa compartida (solo bridge)
 }
 
 impl Default for SecurityConfig {
@@ -28,6 +29,7 @@ impl Default for SecurityConfig {
             container_password: password::generate_12(),
             sudo_mode: "nopasswd".to_string(),
             network_mode: "bridge".to_string(),
+            network_name: None,
         }
     }
 }

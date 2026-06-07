@@ -167,6 +167,7 @@ fn get_security_defaults(template: &str) -> SecurityConfig {
             container_password: password::generate_12(),
             sudo_mode: "none".to_string(),
             network_mode: "bridge".to_string(),
+            network_name: None,
         }
     } else if template == "nodejs" || template == "android/react-native" {
         SecurityConfig {
@@ -177,6 +178,7 @@ fn get_security_defaults(template: &str) -> SecurityConfig {
             container_password: password::generate_12(),
             sudo_mode: "nopasswd".to_string(),
             network_mode: "bridge".to_string(),
+            network_name: None,
         }
     } else {
         SecurityConfig {
@@ -187,6 +189,7 @@ fn get_security_defaults(template: &str) -> SecurityConfig {
             container_password: password::generate_12(),
             sudo_mode: "nopasswd".to_string(),
             network_mode: "bridge".to_string(),
+            network_name: None,
         }
     }
 }
@@ -204,8 +207,8 @@ fn build_security_config(
     let defaults = get_security_defaults(template);
 
     // Network mode (used in both interactive and non-interactive)
-    let network_mode = if let Some(nm) = network_mode_flag {
-        nm.to_lowercase()
+    let (network_mode, network_name) = if let Some(nm) = network_mode_flag {
+        (nm.to_lowercase(), None)
     } else {
         prompt_network_mode(&defaults.network_mode, template, tui)?
     };
@@ -244,6 +247,7 @@ fn build_security_config(
             container_password,
             sudo_mode,
             network_mode,
+            network_name,
         });
     }
 
@@ -269,6 +273,7 @@ fn build_security_config(
             container_password,
             sudo_mode: "none".to_string(),
             network_mode,
+            network_name,
         });
     }
 
@@ -305,6 +310,7 @@ fn build_security_config(
         container_password,
         sudo_mode,
         network_mode,
+        network_name,
     })
 }
 
@@ -498,7 +504,7 @@ fn prompt_sudo_mode(default: &str, template: &str, tui: &Tui) -> Result<String> 
     }
 }
 
-fn prompt_network_mode(default: &str, template: &str, tui: &Tui) -> Result<String> {
+fn prompt_network_mode(default: &str, template: &str, tui: &Tui) -> Result<(String, Option<String>)> {
     let options = vec![
         "Bridge (recomendado) — aislamiento de red con port mapping",
         "Host — máximo rendimiento, sin aislamiento (solo Linux)",
@@ -512,7 +518,7 @@ fn prompt_network_mode(default: &str, template: &str, tui: &Tui) -> Result<Strin
         _ => 0,
     };
 
-    loop {
+    let mode = loop {
         tui.draw_frame("Configuración de red", Some(template))?;
         println!("{}", "Modo de red del contenedor".bold());
         println!("{}", "==========================".bold());
@@ -541,8 +547,33 @@ fn prompt_network_mode(default: &str, template: &str, tui: &Tui) -> Result<Strin
         };
 
         println!("{}", format!("  ✓ Red: {}", mode).green());
-        return Ok(mode.to_string());
-    }
+        break mode;
+    };
+
+    // If bridge, ask about external shared network
+    let network_name = if mode == "bridge" {
+        tui.draw_frame("Red compartida", Some(template))?;
+        let use_shared = Confirm::new()
+            .with_prompt("¿Querés unir este devcontainer a una red externa compartida? (útil para conectar con servicios en otros docker-compose)")
+            .default(false)
+            .interact()
+            .context("Failed to display shared network confirmation")?;
+
+        if use_shared {
+            let input: String = Input::new()
+                .with_prompt("Nombre de la red compartida")
+                .default("shared_net".to_string())
+                .interact_text()
+                .context("Failed to read shared network name")?;
+            Some(input.trim().to_string())
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    Ok((mode.to_string(), network_name))
 }
 
 fn maybe_save_credentials(
