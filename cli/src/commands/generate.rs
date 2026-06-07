@@ -583,6 +583,15 @@ fn prompt_network_mode(default: &str, template: &str, tui: &Tui) -> Result<(Stri
     Ok((mode.to_string(), network_name))
 }
 
+fn read_line_trimmed(prompt: &str) -> Result<String> {
+    use std::io::{self, Write};
+    print!("{}", prompt);
+    io::stdout().flush()?;
+    let mut buf = String::new();
+    io::stdin().read_line(&mut buf)?;
+    Ok(buf.trim().to_string())
+}
+
 fn ensure_docker_network(network_name: &str, _template: &str) -> Result<()> {
     use std::process::Command;
 
@@ -617,13 +626,9 @@ fn ensure_docker_network(network_name: &str, _template: &str) -> Result<()> {
     }
 
     // Ask if user wants to create it
-    let should_create = Confirm::new()
-        .with_prompt(format!("La red '{}' no existe. ¿Crearla?", network_name))
-        .default(true)
-        .interact()
-        .context("Failed to display network creation confirmation")?;
-
-    if !should_create {
+    println!();
+    let answer = read_line_trimmed(&format!("La red '{}' no existe. ¿Crearla? [S/n]: ", network_name))?;
+    if !answer.is_empty() && !answer.to_lowercase().starts_with('s') {
         println!("{}", "  ⚠ Recordá crear la red antes de levantar el contenedor:".yellow());
         println!("     docker network create {}", network_name.cyan());
         return Ok(());
@@ -649,23 +654,18 @@ fn ensure_docker_network(network_name: &str, _template: &str) -> Result<()> {
     }
 
     // If we got here, creation failed. Ask about sudo.
-    let use_sudo = Confirm::new()
-        .with_prompt("¿Probamos con sudo?")
-        .default(true)
-        .interact()
-        .context("Failed to display sudo confirmation")?;
-
-    if !use_sudo {
+    println!();
+    let sudo_answer = read_line_trimmed("¿Probamos con sudo? [S/n]: ")?;
+    if !sudo_answer.is_empty() && !sudo_answer.to_lowercase().starts_with('s') {
         println!("{}", "  ⚠ Creá la red manualmente:".yellow());
         println!("     sudo docker network create {}", network_name.cyan());
         return Ok(());
     }
 
     // Ask for sudo password
-    let sudo_pass = Password::new()
-        .with_prompt("Contraseña de sudo")
-        .interact()
-        .context("Failed to read sudo password")?;
+    print!("Contraseña de sudo: ");
+    std::io::stdout().flush()?;
+    let sudo_pass = rpassword::read_password().context("Failed to read sudo password")?;
 
     let mut child = Command::new("sudo")
         .args(["-S", "docker", "network", "create", network_name])
