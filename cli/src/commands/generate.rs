@@ -89,12 +89,14 @@ pub async fn run(
         &tui,
     )?;
 
-    tui.cleanup()?;
+    tui.clear_for_dialoguer()?;
 
     // Ensure shared Docker network exists if configured
     if let Some(ref net_name) = security.network_name {
         ensure_docker_network(net_name, &selected_template)?;
     }
+
+    tui.cleanup()?;
 
     println!();
     println!("{}", format!("Generating {} devcontainer...", selected_template).cyan());

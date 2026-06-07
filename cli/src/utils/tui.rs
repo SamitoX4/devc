@@ -119,6 +119,14 @@ impl Tui {
         Ok(())
     }
 
+    /// Clear screen and reset cursor for standard dialoguer prompts.
+    pub fn clear_for_dialoguer(&self) -> Result<()> {
+        self.term.clear_screen()?;
+        self.term.move_cursor_to(0, 0)?;
+        self.term.show_cursor()?;
+        Ok(())
+    }
+
     fn draw_header(&self, width: usize, step: &str, template: Option<&str>) -> Result<()> {
         let top_line = "━".repeat(width);
         let bottom_line = "━".repeat(width);
