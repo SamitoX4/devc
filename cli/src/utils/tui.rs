@@ -93,12 +93,4 @@ impl Tui {
     }
 }
 
-/// Convenience for quick status messages that do not need the full frame.
-pub fn print_step_banner(step: &str) {
-    let width = 70;
-    let sep = "─".repeat(width);
-    println!();
-    println!("{}", sep.dimmed());
-    println!("  {} {}", "Paso:".dimmed(), step.yellow());
-    println!("{}", sep.dimmed());
-}
+
