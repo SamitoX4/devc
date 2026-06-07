@@ -54,23 +54,17 @@ pub async fn run(
     let final_git_name = if let Some(n) = git_name {
         println!("{}", format!("  Git Name: {}", n).dimmed());
         Some(n.to_string())
-    } else if let Some(n) = git_config.name.as_ref() {
-        println!("{}", format!("  Git Name: {} (from config)", n).dimmed());
-        Some(n.clone())
     } else {
         tui.draw_frame("Configuración de Git", Some(&selected_template))?;
-        Some(prompt_git_name(&tui))
+        Some(prompt_git_name(&tui, git_config.name.as_deref())?)
     };
 
     let final_git_email = if let Some(e) = git_email {
         println!("{}", format!("  Git Email: {}", e).dimmed());
         Some(e.to_string())
-    } else if let Some(e) = git_config.email.as_ref() {
-        println!("{}", format!("  Git Email: {} (from config)", e).dimmed());
-        Some(e.clone())
     } else {
         tui.draw_frame("Configuración de Git", Some(&selected_template))?;
-        Some(prompt_git_email(&tui))
+        Some(prompt_git_email(&tui, git_config.email.as_deref())?)
     };
 
     if let (Some(n), Some(e)) = (&final_git_name, &final_git_email) {
@@ -829,30 +823,52 @@ fn prompt_target_directory(tui: &Tui) -> Result<std::path::PathBuf> {
     Ok(target)
 }
 
-fn prompt_git_name(tui: &Tui) -> String {
+fn prompt_git_name(tui: &Tui, saved: Option<&str>) -> Result<String> {
     if let Some(ctx) = crate::utils::tui::get_step_context("Configuración de Git") {
         let _ = tui.print_context(&ctx);
     }
-    let input: String = Input::new()
-        .with_prompt("Git User Name")
-        .default("user".to_string())
-        .interact_text()
-        .unwrap_or_else(|_| "user".to_string());
+    loop {
+        let mut input = Input::new()
+            .with_prompt("Git User Name");
+        if let Some(d) = saved {
+            input = input.default(d.to_string());
+        }
+        let name: String = input
+            .interact_text()
+            .context("Failed to read git name")?;
 
-    input
+        if name.trim().is_empty() {
+            println!("{}", "  ✗ El nombre de Git no puede estar vacío. Intentá de nuevo.".red());
+            continue;
+        }
+        return Ok(name.trim().to_string());
+    }
 }
 
-fn prompt_git_email(tui: &Tui) -> String {
+fn prompt_git_email(tui: &Tui, saved: Option<&str>) -> Result<String> {
     if let Some(ctx) = crate::utils::tui::get_step_context("Configuración de Git") {
         let _ = tui.print_context(&ctx);
     }
-    let input: String = Input::new()
-        .with_prompt("Git User Email")
-        .default("user@example.com".to_string())
-        .interact_text()
-        .unwrap_or_else(|_| "user@example.com".to_string());
+    loop {
+        let mut input = Input::new()
+            .with_prompt("Git User Email");
+        if let Some(d) = saved {
+            input = input.default(d.to_string());
+        }
+        let email: String = input
+            .interact_text()
+            .context("Failed to read git email")?;
 
-    input
+        if email.trim().is_empty() {
+            println!("{}", "  ✗ El email de Git no puede estar vacío. Intentá de nuevo.".red());
+            continue;
+        }
+        if !email.contains('@') {
+            println!("{}", "  ✗ El email debe contener @. Intentá de nuevo.".red());
+            continue;
+        }
+        return Ok(email.trim().to_string());
+    }
 }
 
 fn prompt_custom_versions(
