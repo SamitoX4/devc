@@ -292,6 +292,7 @@ impl ConfigMerger {
             if security.network_mode == "bridge" {
                 // Bridge is the default; remove the line to keep compose clean
                 content = content.replace("    network_mode: __NETWORK_MODE__\n", "");
+                content = content.replace("    __NETWORK_MODE__\n", "");
             } else {
                 content = content.replace("__NETWORK_MODE__", &security.network_mode);
             }
