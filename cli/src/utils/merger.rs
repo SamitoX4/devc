@@ -233,10 +233,11 @@ impl ConfigMerger {
     }
 
     pub fn update_docker_compose(
-        devcontainer_dir: &Path,
+        project_dir: &Path,
         project_name: &str,
         security: &SecurityConfig,
     ) -> Result<()> {
+        let devcontainer_dir = project_dir.join(".devcontainer");
         let compose_path = devcontainer_dir.join("docker-compose.yml");
         
         if !compose_path.exists() {
