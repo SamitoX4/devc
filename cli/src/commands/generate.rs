@@ -89,12 +89,12 @@ pub async fn run(
         &tui,
     )?;
 
+    tui.cleanup()?;
+
     // Ensure shared Docker network exists if configured
     if let Some(ref net_name) = security.network_name {
-        ensure_docker_network(net_name, &tui, &selected_template)?;
+        ensure_docker_network(net_name, &selected_template)?;
     }
-
-    tui.cleanup()?;
 
     println!();
     println!("{}", format!("Generating {} devcontainer...", selected_template).cyan());
@@ -581,8 +581,12 @@ fn prompt_network_mode(default: &str, template: &str, tui: &Tui) -> Result<(Stri
     Ok((mode.to_string(), network_name))
 }
 
-fn ensure_docker_network(network_name: &str, tui: &Tui, template: &str) -> Result<()> {
+fn ensure_docker_network(network_name: &str, _template: &str) -> Result<()> {
     use std::process::Command;
+
+    println!();
+    println!("{}", "🔗 Configuración de red compartida".bold().cyan());
+    println!("{}", "───────────────────────────────────".cyan());
 
     // Check if docker is available
     let docker_check = Command::new("docker")
@@ -611,7 +615,6 @@ fn ensure_docker_network(network_name: &str, tui: &Tui, template: &str) -> Resul
     }
 
     // Ask if user wants to create it
-    tui.draw_frame("Crear red Docker", Some(template))?;
     let should_create = Confirm::new()
         .with_prompt(format!("La red '{}' no existe. ¿Crearla?", network_name))
         .default(true)
