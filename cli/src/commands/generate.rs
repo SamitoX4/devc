@@ -311,7 +311,7 @@ fn prompt_security_mode(default: &str, template: &str, tui: &Tui) -> Result<Stri
         println!();
 
         let mut items = options.clone();
-        items.push("❓  Ayuda".to_string());
+        items.push("❓  Ayuda");
 
         let selection = Select::new()
             .with_prompt("Elige el perfil de seguridad")
@@ -445,7 +445,7 @@ fn prompt_sudo_mode(default: &str, template: &str, tui: &Tui) -> Result<String> 
         tui.draw_frame("Privilegios sudo", Some(template))?;
 
         let mut items = options.clone();
-        items.push("❓  Ayuda".to_string());
+        items.push("❓  Ayuda");
 
         let selection = Select::new()
             .with_prompt("Modo sudo para el usuario de desarrollo")
