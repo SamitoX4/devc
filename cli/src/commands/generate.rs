@@ -89,6 +89,11 @@ pub async fn run(
         &tui,
     )?;
 
+    // Ensure shared Docker network exists if configured
+    if let Some(ref net_name) = security.network_name {
+        ensure_docker_network(net_name, &tui, &selected_template)?;
+    }
+
     tui.cleanup()?;
 
     println!();
@@ -574,6 +579,115 @@ fn prompt_network_mode(default: &str, template: &str, tui: &Tui) -> Result<(Stri
     };
 
     Ok((mode.to_string(), network_name))
+}
+
+fn ensure_docker_network(network_name: &str, tui: &Tui, template: &str) -> Result<()> {
+    use std::process::Command;
+
+    // Check if docker is available
+    let docker_check = Command::new("docker")
+        .arg("--version")
+        .output();
+
+    if docker_check.is_err() {
+        println!("{}", "  ⚠ Docker no detectado. Creá la red manualmente:".yellow());
+        println!("     docker network create {}".cyan(), network_name);
+        return Ok(());
+    }
+
+    // Check if network already exists
+    let network_exists = Command::new("docker")
+        .args(["network", "ls", "--filter", &format!("name={}", network_name), "--format", "{{.Name}}"])
+        .output()
+        .map(|o| {
+            let stdout = String::from_utf8_lossy(&o.stdout);
+            stdout.trim() == network_name
+        })
+        .unwrap_or(false);
+
+    if network_exists {
+        println!("{}", format!("  ✓ La red '{}' ya existe", network_name).green());
+        return Ok(());
+    }
+
+    // Ask if user wants to create it
+    tui.draw_frame("Crear red Docker", Some(template))?;
+    let should_create = Confirm::new()
+        .with_prompt(format!("La red '{}' no existe. ¿Crearla?", network_name))
+        .default(true)
+        .interact()
+        .context("Failed to display network creation confirmation")?;
+
+    if !should_create {
+        println!("{}", "  ⚠ Recordá crear la red antes de levantar el contenedor:".yellow());
+        println!("     docker network create {}".cyan(), network_name);
+        return Ok(());
+    }
+
+    // Try creating without sudo
+    let create_result = Command::new("docker")
+        .args(["network", "create", network_name])
+        .output();
+
+    match create_result {
+        Ok(output) if output.status.success() => {
+            println!("{}", format!("  ✓ Red '{}' creada exitosamente", network_name).green());
+            return Ok(());
+        }
+        Ok(output) => {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            println!("{}", format!("  ✗ Error al crear la red: {}", stderr.trim()).red());
+        }
+        Err(e) => {
+            println!("{}", format!("  ✗ Error al ejecutar docker: {}", e).red());
+        }
+    }
+
+    // If we got here, creation failed. Ask about sudo.
+    let use_sudo = Confirm::new()
+        .with_prompt("¿Probamos con sudo?")
+        .default(true)
+        .interact()
+        .context("Failed to display sudo confirmation")?;
+
+    if !use_sudo {
+        println!("{}", "  ⚠ Creá la red manualmente:".yellow());
+        println!("     sudo docker network create {}".cyan(), network_name);
+        return Ok(());
+    }
+
+    // Ask for sudo password
+    let sudo_pass = Password::new()
+        .with_prompt("Contraseña de sudo")
+        .interact()
+        .context("Failed to read sudo password")?;
+
+    let mut child = Command::new("sudo")
+        .args(["-S", "docker", "network", "create", network_name])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .context("Failed to spawn sudo docker network create")?;
+
+    if let Some(stdin) = child.stdin.take() {
+        use std::io::Write;
+        let mut stdin = stdin;
+        writeln!(stdin, "{}", sudo_pass).context("Failed to write sudo password")?;
+    }
+
+    let output = child.wait_with_output().context("Failed to wait for sudo command")?;
+
+    if output.status.success() {
+        println!("{}", format!("  ✓ Red '{}' creada con sudo", network_name).green());
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        println!("{}", format!("  ✗ Falló sudo: {}", stderr.trim()).red());
+        println!("{}", "  ⚠ Creá la red manualmente:".yellow());
+        println!("     sudo docker network create {}".cyan(), network_name);
+    }
+
+    Ok(())
 }
 
 fn maybe_save_credentials(
