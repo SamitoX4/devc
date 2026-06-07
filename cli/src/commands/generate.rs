@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use colored::*;
 use dialoguer::{Confirm, Input, MultiSelect, Password, Select};
+use std::io::Write;
 use crate::utils::cache::CacheManager;
 use crate::utils::copier::TemplateCopier;
 use crate::utils::credentials;
