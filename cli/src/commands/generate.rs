@@ -94,7 +94,10 @@ pub async fn run(
 
     // Ensure shared Docker network exists if configured
     if let Some(ref net_name) = security.network_name {
+        println!("{}", format!("👉 Configurando red compartida: {}", net_name).bold().yellow());
         ensure_docker_network(net_name, &selected_template)?;
+    } else {
+        println!("{}", "👉 No hay red compartida configurada".dimmed());
     }
 
     tui.cleanup()?;
