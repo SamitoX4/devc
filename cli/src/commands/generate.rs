@@ -367,9 +367,15 @@ fn prompt_passwords(remote_user: &str, template: &str, tui: &Tui) -> Result<(Str
 
 fn prompt_password(for_user: &str) -> Result<String> {
     let pass = Password::new()
-        .with_prompt(format!("Contraseña para {}", for_user))
+        .with_prompt(format!("Contraseña para {} (Enter para auto-generar)", for_user))
         .interact()
         .context("Failed to read password")?;
+
+    if pass.is_empty() {
+        let generated = password::generate_12();
+        println!("{}", format!("  ✓ Contraseña auto-generada para {}", for_user).green());
+        return Ok(generated);
+    }
 
     let confirm = Password::new()
         .with_prompt(format!("Confirmar contraseña para {}", for_user))
