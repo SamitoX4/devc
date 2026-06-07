@@ -6,6 +6,7 @@ use crate::utils::copier::TemplateCopier;
 use crate::utils::credentials;
 use crate::utils::merger::ConfigMerger;
 use crate::utils::password;
+use crate::utils::tui::Tui;
 use crate::utils::SecurityConfig;
 
 pub async fn run(
@@ -21,17 +22,14 @@ pub async fn run(
     save_credentials_flag: Option<&str>,
     cache: &mut CacheManager,
 ) -> Result<()> {
-    println!();
-    println!("{}", "DevContainer Generator".bold().cyan());
-    println!("{}", "====================".cyan());
-    println!();
+    let tui = Tui::new("DevContainer Generator");
 
     // 1. Template
     let selected_template = if let Some(t) = template {
         println!("{}", format!("  Template: {}", t).dimmed());
         t.to_string()
     } else {
-        print_status_bar("Selección de template", None);
+        tui.draw_frame("Selección de template", None)?;
         select_template_interactive(cache)?
     };
 
@@ -40,12 +38,12 @@ pub async fn run(
         println!("{}", format!("  Project: {}", n).dimmed());
         n.to_string()
     } else {
-        print_status_bar("Nombre del proyecto", Some(&selected_template));
+        tui.draw_frame("Nombre del proyecto", Some(&selected_template))?;
         prompt_project_name()?
     };
 
     // 3. Target Directory
-    print_status_bar("Ubicación del devcontainer", Some(&selected_template));
+    tui.draw_frame("Ubicación del devcontainer", Some(&selected_template))?;
     let target_dir = prompt_target_directory()?;
 
     // 4. Git Config
@@ -58,7 +56,7 @@ pub async fn run(
         println!("{}", format!("  Git Name: {} (from config)", n).dimmed());
         Some(n.clone())
     } else {
-        print_status_bar("Configuración de Git", Some(&selected_template));
+        tui.draw_frame("Configuración de Git", Some(&selected_template))?;
         Some(prompt_git_name())
     };
 
@@ -69,7 +67,7 @@ pub async fn run(
         println!("{}", format!("  Git Email: {} (from config)", e).dimmed());
         Some(e.clone())
     } else {
-        print_status_bar("Configuración de Git", Some(&selected_template));
+        tui.draw_frame("Configuración de Git", Some(&selected_template))?;
         Some(prompt_git_email())
     };
 
@@ -78,7 +76,7 @@ pub async fn run(
     }
 
     // 5. Security Config
-    print_status_bar("Configuración de seguridad", Some(&selected_template));
+    tui.draw_frame("Configuración de seguridad", Some(&selected_template))?;
     let security = build_security_config(
         &selected_template,
         security_mode,
@@ -86,7 +84,10 @@ pub async fn run(
         remote_password,
         container_password,
         sudo_mode,
+        &tui,
     )?;
+
+    tui.cleanup()?;
 
     println!();
     println!("{}", format!("Generating {} devcontainer...", selected_template).cyan());
@@ -108,7 +109,7 @@ pub async fn run(
 
     let dockerfile_path = target_dir.join(".devcontainer").join("Dockerfile");
     if dockerfile_path.exists() {
-        if let Some(custom_args) = prompt_custom_versions(&dockerfile_path)? {
+        if let Some(custom_args) = prompt_custom_versions(&dockerfile_path, &selected_template, &tui)? {
             apply_custom_versions(&dockerfile_path, &custom_args)?;
             apply_custom_versions_to_config_files(&target_dir, &custom_args)?;
             println!();
@@ -133,6 +134,7 @@ pub async fn run(
             &selected_template,
             &security,
             save_credentials_flag,
+            &tui,
         )? {
             println!();
             println!("{}", format!("✓ Credenciales guardadas en: {}", saved_path.display()).green());
@@ -191,6 +193,7 @@ fn build_security_config(
     remote_pass_flag: Option<&str>,
     container_pass_flag: Option<&str>,
     sudo_flag: Option<&str>,
+    tui: &Tui,
 ) -> Result<SecurityConfig> {
     let defaults = get_security_defaults(template);
 
@@ -231,12 +234,13 @@ fn build_security_config(
     }
 
     // Interactive mode
-    let mode = prompt_security_mode(&defaults.mode, template)?;
+    let mode = prompt_security_mode(&defaults.mode, template, tui)?;
 
     if mode == "root" {
         let container_password = if let Some(pass) = container_pass_flag {
             pass.to_string()
         } else {
+            tui.draw_frame("Contraseña de root", Some(template))?;
             prompt_password("root del contenedor")?
         };
 
@@ -253,13 +257,13 @@ fn build_security_config(
     let remote_user = if let Some(user) = user_flag {
         user.to_string()
     } else {
-        prompt_remote_user(&defaults.remote_user, template)?
+        prompt_remote_user(&defaults.remote_user, template, tui)?
     };
 
     let (remote_password, container_password) = if remote_pass_flag.is_some() && container_pass_flag.is_some() {
         (remote_pass_flag.unwrap().to_string(), container_pass_flag.unwrap().to_string())
     } else {
-        prompt_passwords(&remote_user, template)?
+        prompt_passwords(&remote_user, template, tui)?
     };
 
     let sudo_mode = if let Some(sudo) = sudo_flag {
@@ -270,7 +274,7 @@ fn build_security_config(
             "secure" => "none",
             _ => &defaults.sudo_mode,
         };
-        prompt_sudo_mode(default_sudo, template)?
+        prompt_sudo_mode(default_sudo, template, tui)?
     };
 
     let container_user = Some(remote_user.clone());
@@ -285,33 +289,8 @@ fn build_security_config(
     })
 }
 
-fn print_status_bar(step: &str, template: Option<&str>) {
-    let width = 70;
-    let separator = "─".repeat(width);
-    
-    let context = if let Some(t) = template {
-        format!("Template: {}", t.cyan())
-    } else {
-        "Seleccionando template...".to_string()
-    };
-    
-    println!();
-    println!("{}", separator.dimmed());
-    println!(
-        "  {} {}  │  {}  │  {}  {}  │  {} {}",
-        "Paso:".dimmed(),
-        step.yellow(),
-        context,
-        "Navegar:".dimmed(),
-        "↑/↓".cyan(),
-        "Seleccionar:".dimmed(),
-        "Enter".cyan()
-    );
-    println!("{}", separator.dimmed());
-}
-
-fn prompt_security_mode(default: &str, template: &str) -> Result<String> {
-    print_status_bar("Configuración de seguridad", Some(template));
+fn prompt_security_mode(default: &str, template: &str, tui: &Tui) -> Result<String> {
+    tui.draw_frame("Configuración de seguridad", Some(template))?;
     
     let options = vec![
         "Modo Desarrollador (recomendado) — usuario con sudo sin contraseña",
@@ -350,8 +329,8 @@ fn prompt_security_mode(default: &str, template: &str) -> Result<String> {
     Ok(mode.to_string())
 }
 
-fn prompt_remote_user(default: &str, template: &str) -> Result<String> {
-    print_status_bar("Usuario de desarrollo", Some(template));
+fn prompt_remote_user(default: &str, template: &str, tui: &Tui) -> Result<String> {
+    tui.draw_frame("Usuario de desarrollo", Some(template))?;
     
     let input: String = Input::new()
         .with_prompt("Nombre de usuario de desarrollo")
@@ -363,9 +342,9 @@ fn prompt_remote_user(default: &str, template: &str) -> Result<String> {
     Ok(input)
 }
 
-fn prompt_passwords(remote_user: &str, template: &str) -> Result<(String, String)> {
-    print_status_bar("Contraseñas del contenedor", Some(template));
-    
+fn prompt_passwords(remote_user: &str, template: &str, tui: &Tui) -> Result<(String, String)> {
+    tui.draw_frame("Contraseñas del contenedor", Some(template))?;
+
     let use_custom = Confirm::new()
         .with_prompt("¿Configurar contraseñas personalizadas?")
         .default(false)
@@ -373,7 +352,9 @@ fn prompt_passwords(remote_user: &str, template: &str) -> Result<(String, String
         .context("Failed to display password confirmation")?;
 
     if use_custom {
+        tui.draw_frame("Contraseña de root", Some(template))?;
         let container_password = prompt_password("root del contenedor")?;
+        tui.draw_frame(format!("Contraseña de {}", remote_user).as_str(), Some(template))?;
         let remote_password = prompt_password(remote_user)?;
         Ok((remote_password, container_password))
     } else {
@@ -406,8 +387,8 @@ fn prompt_password(for_user: &str) -> Result<String> {
     Ok(pass)
 }
 
-fn prompt_sudo_mode(default: &str, template: &str) -> Result<String> {
-    print_status_bar("Privilegios sudo", Some(template));
+fn prompt_sudo_mode(default: &str, template: &str, tui: &Tui) -> Result<String> {
+    tui.draw_frame("Privilegios sudo", Some(template))?;
     
     let options = vec![
         "sudo sin contraseña (NOPASSWD:ALL)",
@@ -445,12 +426,14 @@ fn maybe_save_credentials(
     template: &str,
     security: &SecurityConfig,
     save_credentials_flag: Option<&str>,
+    tui: &Tui,
 ) -> Result<Option<std::path::PathBuf>> {
     let should_save = if let Some(flag) = save_credentials_flag {
         // Non-empty flag means yes (value is the path or "default")
         !flag.is_empty()
     } else {
         // Interactive prompt
+        tui.draw_frame("Guardar credenciales", Some(template))?;
         Confirm::new()
             .with_prompt("¿Guardar las credenciales en un archivo?")
             .default(false)
@@ -469,6 +452,7 @@ fn maybe_save_credentials(
             std::path::PathBuf::from(flag)
         }
     } else {
+        tui.draw_frame("Ruta del archivo de credenciales", Some(template))?;
         let default = credentials::default_credentials_path(project_name);
         let input: String = Input::new()
             .with_prompt("Ruta del archivo de credenciales")
@@ -572,7 +556,11 @@ fn prompt_git_email() -> String {
     input
 }
 
-fn prompt_custom_versions(dockerfile_path: &std::path::Path) -> Result<Option<Vec<(String, String)>>> {
+fn prompt_custom_versions(
+    dockerfile_path: &std::path::Path,
+    template: &str,
+    tui: &Tui,
+) -> Result<Option<Vec<(String, String)>>> {
     let content = std::fs::read_to_string(dockerfile_path)?;
     let mut args = Vec::new();
 
@@ -601,6 +589,7 @@ fn prompt_custom_versions(dockerfile_path: &std::path::Path) -> Result<Option<Ve
         println!("  {} = {}", name.dimmed(), value.cyan());
     }
 
+    tui.draw_frame("Personalizar versiones", Some(template))?;
     let customize = Confirm::new()
         .with_prompt("¿Quieres personalizar alguna versión?")
         .default(false)
@@ -632,6 +621,8 @@ fn prompt_custom_versions(dockerfile_path: &std::path::Path) -> Result<Option<Ve
                     defaults[idx] = true;
                 }
 
+                let step = format!("Versión de {}", name);
+                tui.draw_frame(&step, Some(template))?;
                 let picked = MultiSelect::new()
                     .with_prompt(format!("{} (space to select, enter to confirm)", name))
                     .items(&options)
@@ -657,6 +648,8 @@ fn prompt_custom_versions(dockerfile_path: &std::path::Path) -> Result<Option<Ve
                         .unwrap_or(0)
                 });
 
+            let step = format!("Versión de {}", name);
+            tui.draw_frame(&step, Some(template))?;
             let selection = Select::new()
                 .with_prompt(format!("{}", name))
                 .items(&options)
@@ -666,6 +659,8 @@ fn prompt_custom_versions(dockerfile_path: &std::path::Path) -> Result<Option<Ve
 
             options[selection].clone()
         } else {
+            let step = format!("Versión de {}", name);
+            tui.draw_frame(&step, Some(template))?;
             let input: String = Input::new()
                 .with_prompt(format!("{} (Enter para mantener {})", name, suggested_default))
                 .allow_empty(true)

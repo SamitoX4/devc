@@ -5,6 +5,7 @@ pub mod fetcher;
 pub mod field_order;
 pub mod merger;
 pub mod password;
+pub mod tui;
 
 #[derive(Debug, Clone)]
 pub struct SecurityConfig {
