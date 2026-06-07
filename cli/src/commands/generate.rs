@@ -1,15 +1,24 @@
 use anyhow::{Context, Result};
 use colored::*;
-use dialoguer::{Confirm, Input, MultiSelect, Select};
+use dialoguer::{Confirm, Input, MultiSelect, Password, Select};
 use crate::utils::cache::CacheManager;
 use crate::utils::copier::TemplateCopier;
+use crate::utils::credentials;
 use crate::utils::merger::ConfigMerger;
+use crate::utils::password;
+use crate::utils::SecurityConfig;
 
 pub async fn run(
     template: Option<&str>,
     name: Option<&str>,
     git_name: Option<&str>,
     git_email: Option<&str>,
+    security_mode: Option<&str>,
+    remote_user: Option<&str>,
+    remote_password: Option<&str>,
+    container_password: Option<&str>,
+    sudo_mode: Option<&str>,
+    save_credentials_flag: Option<&str>,
     cache: &mut CacheManager,
 ) -> Result<()> {
     println!();
@@ -22,6 +31,7 @@ pub async fn run(
         println!("{}", format!("  Template: {}", t).dimmed());
         t.to_string()
     } else {
+        print_status_bar("Selección de template", None);
         select_template_interactive(cache)?
     };
 
@@ -30,10 +40,12 @@ pub async fn run(
         println!("{}", format!("  Project: {}", n).dimmed());
         n.to_string()
     } else {
+        print_status_bar("Nombre del proyecto", Some(&selected_template));
         prompt_project_name()?
     };
 
     // 3. Target Directory
+    print_status_bar("Ubicación del devcontainer", Some(&selected_template));
     let target_dir = prompt_target_directory()?;
 
     // 4. Git Config
@@ -46,6 +58,7 @@ pub async fn run(
         println!("{}", format!("  Git Name: {} (from config)", n).dimmed());
         Some(n.clone())
     } else {
+        print_status_bar("Configuración de Git", Some(&selected_template));
         Some(prompt_git_name())
     };
 
@@ -56,12 +69,24 @@ pub async fn run(
         println!("{}", format!("  Git Email: {} (from config)", e).dimmed());
         Some(e.clone())
     } else {
+        print_status_bar("Configuración de Git", Some(&selected_template));
         Some(prompt_git_email())
     };
 
     if let (Some(n), Some(e)) = (&final_git_name, &final_git_email) {
         cache.save_git_config(n, e)?;
     }
+
+    // 5. Security Config
+    print_status_bar("Configuración de seguridad", Some(&selected_template));
+    let security = build_security_config(
+        &selected_template,
+        security_mode,
+        remote_user,
+        remote_password,
+        container_password,
+        sudo_mode,
+    )?;
 
     println!();
     println!("{}", format!("Generating {} devcontainer...", selected_template).cyan());
@@ -77,8 +102,9 @@ pub async fn run(
         &project_name,
         final_git_name.as_deref(),
         final_git_email.as_deref(),
+        &security,
     )?;
-    ConfigMerger::update_docker_compose(&target_dir, &project_name)?;
+    ConfigMerger::update_docker_compose(&target_dir, &project_name, &security)?;
 
     let dockerfile_path = target_dir.join(".devcontainer").join("Dockerfile");
     if dockerfile_path.exists() {
@@ -87,6 +113,30 @@ pub async fn run(
             apply_custom_versions_to_config_files(&target_dir, &custom_args)?;
             println!();
             println!("{}", "✓ Versiones personalizadas aplicadas".green());
+        }
+    }
+
+    // Show generated passwords if auto-generated
+    if remote_password.is_none() || container_password.is_none() {
+        println!();
+        println!("{}", "🔐 Credenciales del contenedor:".bold().yellow());
+        if security.mode != "root" {
+            println!("  {}: {}", "Usuario de desarrollo".dimmed(), security.remote_user.cyan());
+            println!("  {}: {}", "Contraseña de desarrollo".dimmed(), security.remote_password.cyan());
+        }
+        println!("  {}: {}", "Contraseña de root".dimmed(), security.container_password.cyan());
+        println!("{}", "  (Guárdalas, no se vuelven a mostrar)".dimmed());
+
+        // Offer to save credentials
+        if let Some(saved_path) = maybe_save_credentials(
+            &project_name,
+            &selected_template,
+            &security,
+            save_credentials_flag,
+        )? {
+            println!();
+            println!("{}", format!("✓ Credenciales guardadas en: {}", saved_path.display()).green());
+            println!("{}", "  (Permisos: solo lectura para el dueño)".dimmed());
         }
     }
 
@@ -101,6 +151,337 @@ pub async fn run(
     println!("  3. Press F1 and select: Dev Containers: Reopen in Container");
 
     Ok(())
+}
+
+fn get_security_defaults(template: &str) -> SecurityConfig {
+    if template.starts_with("android/") {
+        SecurityConfig {
+            mode: "root".to_string(),
+            remote_user: "root".to_string(),
+            container_user: None,
+            remote_password: password::generate_12(),
+            container_password: password::generate_12(),
+            sudo_mode: "none".to_string(),
+        }
+    } else if template == "nodejs" || template == "android/react-native" {
+        SecurityConfig {
+            mode: "developer".to_string(),
+            remote_user: "node".to_string(),
+            container_user: Some("node".to_string()),
+            remote_password: password::generate_12(),
+            container_password: password::generate_12(),
+            sudo_mode: "nopasswd".to_string(),
+        }
+    } else {
+        SecurityConfig {
+            mode: "developer".to_string(),
+            remote_user: "developer".to_string(),
+            container_user: Some("developer".to_string()),
+            remote_password: password::generate_12(),
+            container_password: password::generate_12(),
+            sudo_mode: "nopasswd".to_string(),
+        }
+    }
+}
+
+fn build_security_config(
+    template: &str,
+    mode_flag: Option<&str>,
+    user_flag: Option<&str>,
+    remote_pass_flag: Option<&str>,
+    container_pass_flag: Option<&str>,
+    sudo_flag: Option<&str>,
+) -> Result<SecurityConfig> {
+    let defaults = get_security_defaults(template);
+
+    // If all flags are provided, use them directly (non-interactive mode)
+    if let Some(mode) = mode_flag {
+        let mode = mode.to_lowercase();
+        let remote_user = user_flag.map(|s| s.to_string()).unwrap_or_else(|| {
+            if mode == "root" {
+                "root".to_string()
+            } else {
+                defaults.remote_user.clone()
+            }
+        });
+        let container_user = if mode == "root" {
+            None
+        } else {
+            Some(remote_user.clone())
+        };
+        let remote_password = remote_pass_flag.map(|s| s.to_string()).unwrap_or_else(|| password::generate_12());
+        let container_password = container_pass_flag.map(|s| s.to_string()).unwrap_or_else(|| password::generate_12());
+        let sudo_mode = sudo_flag.map(|s| s.to_lowercase()).unwrap_or_else(|| {
+            match mode.as_str() {
+                "developer" => "nopasswd".to_string(),
+                "secure" => "none".to_string(),
+                "root" => "none".to_string(),
+                _ => defaults.sudo_mode.clone(),
+            }
+        });
+
+        return Ok(SecurityConfig {
+            mode,
+            remote_user,
+            container_user,
+            remote_password,
+            container_password,
+            sudo_mode,
+        });
+    }
+
+    // Interactive mode
+    let mode = prompt_security_mode(&defaults.mode, template)?;
+
+    if mode == "root" {
+        let container_password = if let Some(pass) = container_pass_flag {
+            pass.to_string()
+        } else {
+            prompt_password("root del contenedor")?
+        };
+
+        return Ok(SecurityConfig {
+            mode,
+            remote_user: "root".to_string(),
+            container_user: None,
+            remote_password: container_password.clone(),
+            container_password,
+            sudo_mode: "none".to_string(),
+        });
+    }
+
+    let remote_user = if let Some(user) = user_flag {
+        user.to_string()
+    } else {
+        prompt_remote_user(&defaults.remote_user, template)?
+    };
+
+    let (remote_password, container_password) = if remote_pass_flag.is_some() && container_pass_flag.is_some() {
+        (remote_pass_flag.unwrap().to_string(), container_pass_flag.unwrap().to_string())
+    } else {
+        prompt_passwords(&remote_user, template)?
+    };
+
+    let sudo_mode = if let Some(sudo) = sudo_flag {
+        sudo.to_lowercase()
+    } else {
+        let default_sudo = match mode.as_str() {
+            "developer" => "nopasswd",
+            "secure" => "none",
+            _ => &defaults.sudo_mode,
+        };
+        prompt_sudo_mode(default_sudo, template)?
+    };
+
+    let container_user = Some(remote_user.clone());
+
+    Ok(SecurityConfig {
+        mode,
+        remote_user,
+        container_user,
+        remote_password,
+        container_password,
+        sudo_mode,
+    })
+}
+
+fn print_status_bar(step: &str, template: Option<&str>) {
+    let width = 70;
+    let separator = "─".repeat(width);
+    
+    let context = if let Some(t) = template {
+        format!("Template: {}", t.cyan())
+    } else {
+        "Seleccionando template...".to_string()
+    };
+    
+    println!();
+    println!("{}", separator.dimmed());
+    println!(
+        "  {} {}  │  {}  │  {}  {}  │  {} {}",
+        "Paso:".dimmed(),
+        step.yellow(),
+        context,
+        "Navegar:".dimmed(),
+        "↑/↓".cyan(),
+        "Seleccionar:".dimmed(),
+        "Enter".cyan()
+    );
+    println!("{}", separator.dimmed());
+}
+
+fn prompt_security_mode(default: &str, template: &str) -> Result<String> {
+    print_status_bar("Configuración de seguridad", Some(template));
+    
+    let options = vec![
+        "Modo Desarrollador (recomendado) — usuario con sudo sin contraseña",
+        "Modo Seguro — usuario sin sudo",
+        "Modo Root — todo como root",
+        "Personalizado — configurar manualmente",
+    ];
+
+    let default_idx = match default {
+        "developer" => 0,
+        "secure" => 1,
+        "root" => 2,
+        _ => 0,
+    };
+
+    println!("{}", "Configuración de Seguridad del Contenedor".bold());
+    println!("{}", "===========================================".bold());
+    println!();
+
+    let selection = Select::new()
+        .with_prompt("Elige el perfil de seguridad")
+        .items(&options)
+        .default(default_idx)
+        .interact()
+        .context("Failed to display security mode selection")?;
+
+    let mode = match selection {
+        0 => "developer",
+        1 => "secure",
+        2 => "root",
+        3 => "custom",
+        _ => "developer",
+    };
+
+    println!("{}", format!("  ✓ Modo: {}", mode).green());
+    Ok(mode.to_string())
+}
+
+fn prompt_remote_user(default: &str, template: &str) -> Result<String> {
+    print_status_bar("Usuario de desarrollo", Some(template));
+    
+    let input: String = Input::new()
+        .with_prompt("Nombre de usuario de desarrollo")
+        .default(default.to_string())
+        .interact_text()
+        .context("Failed to read remote user name")?;
+
+    println!("{}", format!("  ✓ Usuario: {}", input).green());
+    Ok(input)
+}
+
+fn prompt_passwords(remote_user: &str, template: &str) -> Result<(String, String)> {
+    print_status_bar("Contraseñas del contenedor", Some(template));
+    
+    let use_custom = Confirm::new()
+        .with_prompt("¿Configurar contraseñas personalizadas?")
+        .default(false)
+        .interact()
+        .context("Failed to display password confirmation")?;
+
+    if use_custom {
+        let container_password = prompt_password("root del contenedor")?;
+        let remote_password = prompt_password(remote_user)?;
+        Ok((remote_password, container_password))
+    } else {
+        let remote_password = password::generate_12();
+        let container_password = password::generate_12();
+        println!("{}", "  ✓ Contraseñas auto-generadas".green());
+        Ok((remote_password, container_password))
+    }
+}
+
+fn prompt_password(for_user: &str) -> Result<String> {
+    let pass = Password::new()
+        .with_prompt(format!("Contraseña para {}", for_user))
+        .interact()
+        .context("Failed to read password")?;
+
+    let confirm = Password::new()
+        .with_prompt(format!("Confirmar contraseña para {}", for_user))
+        .interact()
+        .context("Failed to read password confirmation")?;
+
+    if pass != confirm {
+        anyhow::bail!("Las contraseñas no coinciden");
+    }
+
+    if pass.len() < 6 {
+        anyhow::bail!("La contraseña debe tener al menos 6 caracteres");
+    }
+
+    Ok(pass)
+}
+
+fn prompt_sudo_mode(default: &str, template: &str) -> Result<String> {
+    print_status_bar("Privilegios sudo", Some(template));
+    
+    let options = vec![
+        "sudo sin contraseña (NOPASSWD:ALL)",
+        "sudo con contraseña",
+        "sin sudo",
+    ];
+
+    let default_idx = match default {
+        "nopasswd" => 0,
+        "password" => 1,
+        "none" => 2,
+        _ => 0,
+    };
+
+    let selection = Select::new()
+        .with_prompt("Modo sudo para el usuario de desarrollo")
+        .items(&options)
+        .default(default_idx)
+        .interact()
+        .context("Failed to display sudo mode selection")?;
+
+    let mode = match selection {
+        0 => "nopasswd",
+        1 => "password",
+        2 => "none",
+        _ => "nopasswd",
+    };
+
+    println!("{}", format!("  ✓ Sudo: {}", mode).green());
+    Ok(mode.to_string())
+}
+
+fn maybe_save_credentials(
+    project_name: &str,
+    template: &str,
+    security: &SecurityConfig,
+    save_credentials_flag: Option<&str>,
+) -> Result<Option<std::path::PathBuf>> {
+    let should_save = if let Some(flag) = save_credentials_flag {
+        // Non-empty flag means yes (value is the path or "default")
+        !flag.is_empty()
+    } else {
+        // Interactive prompt
+        Confirm::new()
+            .with_prompt("¿Guardar las credenciales en un archivo?")
+            .default(false)
+            .interact()
+            .context("Failed to display save credentials confirmation")?
+    };
+
+    if !should_save {
+        return Ok(None);
+    }
+
+    let path = if let Some(flag) = save_credentials_flag {
+        if flag == "default" {
+            credentials::default_credentials_path(project_name)
+        } else {
+            std::path::PathBuf::from(flag)
+        }
+    } else {
+        let default = credentials::default_credentials_path(project_name);
+        let input: String = Input::new()
+            .with_prompt("Ruta del archivo de credenciales")
+            .default(default.to_string_lossy().to_string())
+            .interact_text()
+            .context("Failed to read credentials file path")?;
+        std::path::PathBuf::from(input.trim())
+    };
+
+    credentials::save_credentials(&path, project_name, template, security)
+        .context("Failed to save credentials file")?;
+
+    Ok(Some(path))
 }
 
 fn select_template_interactive(cache: &CacheManager) -> Result<String> {
@@ -261,7 +642,7 @@ fn prompt_custom_versions(dockerfile_path: &std::path::Path) -> Result<Option<Ve
                 if picked.is_empty() {
                     suggested_default
                 } else {
-                    picked.iter().map(|&i| options[i].clone()).collect::<Vec<_>>().join(",")
+                    picked.iter().map(|&i: &usize| options[i].clone()).collect::<Vec<String>>().join(",")
                 }
             } else {
                 suggested_default

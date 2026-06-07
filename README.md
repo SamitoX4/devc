@@ -122,8 +122,44 @@ devc gen --template android/ndk --name my-ndk-project
 # With Git configuration
 devc gen --template android/react-native --name my-app --git-name "John Doe" --git-email "john@example.com"
 
+# With security configuration
+devc gen -t java -n my-java-app --security-mode developer --remote-user developer
+
 # All options
-devc gen -t java -n my-java-app --git-name "John Doe" --git-email "john@example.com"
+devc gen -t java -n my-java-app --git-name "John Doe" --git-email "john@example.com" --security-mode secure --sudo-mode none
+```
+
+#### Security Modes
+
+| Mode | Description | Default Templates |
+|------|-------------|-------------------|
+| `developer` | Non-root user with `sudo` (no password) — recommended | `nodejs`, `java`, `python`, `go`, `rust`, `laravel`, `flutter` |
+| `secure` | Non-root user without `sudo` — maximum security | Any (user choice) |
+| `root` | Everything runs as root | `android/*` |
+| `custom` | Manually configure each option | Any |
+
+#### Security Flags
+
+```bash
+devc gen \
+  --security-mode developer   # developer | secure | root | custom
+  --remote-user node          # VS Code connection user
+  --remote-password "pass"    # Password for remote user
+  --container-password "pass" # Password for root / container user
+  --sudo-mode nopasswd        # nopasswd | password | none
+  --save-credentials default  # Save credentials to ~/.devc/credentials/<project>.json
+```
+
+When passwords are not provided, **secure random passwords are auto-generated** and displayed after generation.
+
+You can optionally save them to a JSON file with **owner-only permissions (600)**:
+
+```bash
+# Save to default location (~/.devc/credentials/<project>.json)
+devc gen --template nodejs --name my-project --save-credentials default
+
+# Save to custom path
+devc gen --template nodejs --name my-project --save-credentials /path/to/creds.json
 ```
 
 ### Configure Git

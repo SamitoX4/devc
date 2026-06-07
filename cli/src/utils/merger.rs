@@ -3,6 +3,7 @@ use std::fs;
 use std::path::Path;
 
 use crate::utils::field_order::FieldOrder;
+use crate::utils::SecurityConfig;
 
 pub struct ConfigMerger;
 
@@ -12,6 +13,7 @@ impl ConfigMerger {
         project_name: &str,
         git_name: Option<&str>,
         git_email: Option<&str>,
+        security: &SecurityConfig,
     ) -> Result<()> {
         let devcontainer_dir = project_dir.join(".devcontainer");
 
@@ -24,7 +26,10 @@ impl ConfigMerger {
             project_name,
             git_name,
             git_email,
+            security,
         )?;
+
+        Self::update_dockerfile(&devcontainer_dir, security)?;
 
         Ok(())
     }
@@ -34,6 +39,7 @@ impl ConfigMerger {
         project_name: &str,
         git_name: Option<&str>,
         git_email: Option<&str>,
+        security: &SecurityConfig,
     ) -> Result<()> {
         let json_path = devcontainer_dir.join("devcontainer.json");
         
@@ -45,7 +51,7 @@ impl ConfigMerger {
         let mut json: serde_json::Value = serde_json::from_str(&content)
             .context("Failed to parse devcontainer.json")?;
 
-        Self::apply_modifications(&mut json, project_name, git_name, git_email)?;
+        Self::apply_modifications(&mut json, project_name, git_name, git_email, security)?;
         
         let output = Self::serialize_ordered(&json)?;
         fs::write(&json_path, output)?;
@@ -58,12 +64,31 @@ impl ConfigMerger {
         project_name: &str,
         git_name: Option<&str>,
         git_email: Option<&str>,
+        security: &SecurityConfig,
     ) -> Result<()> {
         if let Some(obj) = json.as_object_mut() {
+            // Update name
             if let Some(name) = obj.get_mut("name") {
                 *name = serde_json::Value::String(format!("{} DevContainer", project_name));
             }
 
+            // Update remoteUser
+            obj.insert(
+                "remoteUser".to_string(),
+                serde_json::Value::String(security.remote_user.clone()),
+            );
+
+            // Update containerUser if defined
+            if let Some(container_user) = &security.container_user {
+                obj.insert(
+                    "containerUser".to_string(),
+                    serde_json::Value::String(container_user.clone()),
+                );
+            } else {
+                obj.remove("containerUser");
+            }
+
+            // Update containerEnv with git config
             if let Some(container_env) = obj.get_mut("containerEnv") {
                 if let Some(env) = container_env.as_object_mut() {
                     if let (Some(name), Some(email)) = (git_name, git_email) {
@@ -76,11 +101,17 @@ impl ConfigMerger {
                             serde_json::Value::String(email.to_string()),
                         );
                     }
+                    // Also pass security env vars for scripts to use
+                    env.insert(
+                        "REMOTE_USER".to_string(),
+                        serde_json::Value::String(security.remote_user.clone()),
+                    );
                 }
             } else if git_name.is_some() && git_email.is_some() {
                 let mut env = serde_json::Map::new();
                 env.insert("GIT_USER_NAME".to_string(), serde_json::Value::String(git_name.unwrap().to_string()));
                 env.insert("GIT_USER_EMAIL".to_string(), serde_json::Value::String(git_email.unwrap().to_string()));
+                env.insert("REMOTE_USER".to_string(), serde_json::Value::String(security.remote_user.clone()));
                 obj.insert("containerEnv".to_string(), serde_json::Value::Object(env));
             }
         }
@@ -201,7 +232,11 @@ impl ConfigMerger {
         result
     }
 
-    pub fn update_docker_compose(devcontainer_dir: &Path, project_name: &str) -> Result<()> {
+    pub fn update_docker_compose(
+        devcontainer_dir: &Path,
+        project_name: &str,
+        security: &SecurityConfig,
+    ) -> Result<()> {
         let compose_path = devcontainer_dir.join("docker-compose.yml");
         
         if !compose_path.exists() {
@@ -215,7 +250,69 @@ impl ConfigMerger {
             &project_name.replace("-", "_").to_lowercase(),
         );
 
+        // Replace security args placeholder or inject them
+        let security_block = format!(
+            "        REMOTE_USER: {}\n        REMOTE_PASSWORD: {}\n        CONTAINER_PASSWORD: {}\n        SUDO_MODE: {}",
+            security.remote_user,
+            security.remote_password,
+            security.container_password,
+            security.sudo_mode,
+        );
+
+        if content.contains("__SECURITY_ARGS__") {
+            content = content.replace("__SECURITY_ARGS__", &security_block);
+        } else if content.contains("args:") {
+            // Try to inject after the last build arg
+            // Find "args:" section and append security args
+            if let Some(args_pos) = content.find("args:") {
+                let after_args = &content[args_pos..];
+                // Find the end of args block (next non-indented line or service property)
+                let lines: Vec<&str> = after_args.lines().collect();
+                let mut insert_idx = args_pos;
+                for (i, line) in lines.iter().enumerate().skip(1) {
+                    if !line.starts_with("        ") && !line.trim().is_empty() {
+                        // Found end of args block
+                        let mut char_count = 0;
+                        for j in 1..=i {
+                            char_count += lines[j - 1].len() + 1; // +1 for newline
+                        }
+                        insert_idx = args_pos + char_count;
+                        break;
+                    }
+                    if i == lines.len() - 1 {
+                        insert_idx = args_pos + after_args.len();
+                    }
+                }
+                content.insert_str(insert_idx, &format!("\n{}", security_block));
+            }
+        }
+
         fs::write(&compose_path, content)?;
+        Ok(())
+    }
+
+    fn update_dockerfile(devcontainer_dir: &Path, security: &SecurityConfig) -> Result<()> {
+        let dockerfile_path = devcontainer_dir.join("Dockerfile");
+        
+        if !dockerfile_path.exists() {
+            return Ok(());
+        }
+
+        let mut content = fs::read_to_string(&dockerfile_path)?;
+
+        let security_block = format!(
+            "ARG REMOTE_USER={}\nARG REMOTE_PASSWORD={}\nARG CONTAINER_PASSWORD={}\nARG SUDO_MODE={}",
+            security.remote_user,
+            security.remote_password,
+            security.container_password,
+            security.sudo_mode,
+        );
+
+        if content.contains("__SECURITY_ARGS__") {
+            content = content.replace("__SECURITY_ARGS__", &security_block);
+        }
+
+        fs::write(&dockerfile_path, content)?;
         Ok(())
     }
 }
