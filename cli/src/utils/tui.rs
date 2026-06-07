@@ -186,6 +186,12 @@ pub fn get_step_context(step: &str) -> Option<Vec<String>> {
             "Secure: usuario común sin sudo.".to_string(),
             "Root: todo se ejecuta como root.".to_string(),
         ],
+        "Configuración de red" => vec![
+            "Definí cómo se conecta el contenedor a la red.".to_string(),
+            "Bridge: red aislada con port mapping (más seguro, recomendado).".to_string(),
+            "Host: comparte la red del host directamente (máximo rendimiento, sin aislamiento).".to_string(),
+            "None: contenedor sin acceso a la red (máximo aislamiento).".to_string(),
+        ],
         s if s.contains("Usuario de desarrollo") || s == "Usuario de desarrollo" => vec![
             "REMOTE_USER es el usuario con el que VS Code se conecta al contenedor.".to_string(),
             "Este usuario tendrá permisos para trabajar con el código fuente.".to_string(),

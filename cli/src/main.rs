@@ -52,6 +52,9 @@ enum Commands {
         #[arg(long, help = "Sudo mode: nopasswd, password, none")]
         sudo_mode: Option<String>,
 
+        #[arg(long, help = "Network mode: bridge, host, none")]
+        network_mode: Option<String>,
+
         #[arg(long, help = "Save generated credentials to a file (path or 'default' for ~/.devc/credentials/<project>.json)")]
         save_credentials: Option<String>,
     },
@@ -108,6 +111,7 @@ async fn main() -> anyhow::Result<()> {
             remote_password,
             container_password,
             sudo_mode,
+            network_mode,
             save_credentials,
         } => {
             generate::run(
@@ -120,6 +124,7 @@ async fn main() -> anyhow::Result<()> {
                 remote_password.as_deref(),
                 container_password.as_deref(),
                 sudo_mode.as_deref(),
+                network_mode.as_deref(),
                 save_credentials.as_deref(),
                 &mut cache,
             )

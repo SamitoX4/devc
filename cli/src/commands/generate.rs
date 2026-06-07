@@ -19,6 +19,7 @@ pub async fn run(
     remote_password: Option<&str>,
     container_password: Option<&str>,
     sudo_mode: Option<&str>,
+    network_mode: Option<&str>,
     save_credentials_flag: Option<&str>,
     cache: &mut CacheManager,
 ) -> Result<()> {
@@ -84,6 +85,7 @@ pub async fn run(
         remote_password,
         container_password,
         sudo_mode,
+        network_mode,
         &tui,
     )?;
 
@@ -164,6 +166,7 @@ fn get_security_defaults(template: &str) -> SecurityConfig {
             remote_password: password::generate_12(),
             container_password: password::generate_12(),
             sudo_mode: "none".to_string(),
+            network_mode: "bridge".to_string(),
         }
     } else if template == "nodejs" || template == "android/react-native" {
         SecurityConfig {
@@ -173,6 +176,7 @@ fn get_security_defaults(template: &str) -> SecurityConfig {
             remote_password: password::generate_12(),
             container_password: password::generate_12(),
             sudo_mode: "nopasswd".to_string(),
+            network_mode: "bridge".to_string(),
         }
     } else {
         SecurityConfig {
@@ -182,6 +186,7 @@ fn get_security_defaults(template: &str) -> SecurityConfig {
             remote_password: password::generate_12(),
             container_password: password::generate_12(),
             sudo_mode: "nopasswd".to_string(),
+            network_mode: "bridge".to_string(),
         }
     }
 }
@@ -193,9 +198,17 @@ fn build_security_config(
     remote_pass_flag: Option<&str>,
     container_pass_flag: Option<&str>,
     sudo_flag: Option<&str>,
+    network_mode_flag: Option<&str>,
     tui: &Tui,
 ) -> Result<SecurityConfig> {
     let defaults = get_security_defaults(template);
+
+    // Network mode (used in both interactive and non-interactive)
+    let network_mode = if let Some(nm) = network_mode_flag {
+        nm.to_lowercase()
+    } else {
+        prompt_network_mode(&defaults.network_mode, template, tui)?
+    };
 
     // If all flags are provided, use them directly (non-interactive mode)
     if let Some(mode) = mode_flag {
@@ -230,6 +243,7 @@ fn build_security_config(
             remote_password,
             container_password,
             sudo_mode,
+            network_mode,
         });
     }
 
@@ -241,6 +255,9 @@ fn build_security_config(
             pass.to_string()
         } else {
             tui.draw_frame("Contraseña de root", Some(template))?;
+            if let Some(ctx) = crate::utils::tui::get_step_context("Contraseña de root") {
+                tui.print_context(&ctx)?;
+            }
             prompt_password("root del contenedor")?
         };
 
@@ -251,6 +268,7 @@ fn build_security_config(
             remote_password: container_password.clone(),
             container_password,
             sudo_mode: "none".to_string(),
+            network_mode,
         });
     }
 
@@ -286,6 +304,7 @@ fn build_security_config(
         remote_password,
         container_password,
         sudo_mode,
+        network_mode,
     })
 }
 
@@ -475,6 +494,53 @@ fn prompt_sudo_mode(default: &str, template: &str, tui: &Tui) -> Result<String> 
         };
 
         println!("{}", format!("  ✓ Sudo: {}", mode).green());
+        return Ok(mode.to_string());
+    }
+}
+
+fn prompt_network_mode(default: &str, template: &str, tui: &Tui) -> Result<String> {
+    let options = vec![
+        "Bridge (recomendado) — aislamiento de red con port mapping",
+        "Host — máximo rendimiento, sin aislamiento (solo Linux)",
+        "None — contenedor sin acceso a red",
+    ];
+
+    let default_idx = match default {
+        "bridge" => 0,
+        "host" => 1,
+        "none" => 2,
+        _ => 0,
+    };
+
+    loop {
+        tui.draw_frame("Configuración de red", Some(template))?;
+        println!("{}", "Modo de red del contenedor".bold());
+        println!("{}", "==========================".bold());
+        println!();
+
+        let mut items = options.clone();
+        items.push("❓  Ayuda");
+
+        let selection = Select::new()
+            .with_prompt("Elige el modo de red")
+            .items(&items)
+            .default(default_idx)
+            .interact()
+            .context("Failed to display network mode selection")?;
+
+        if selection == options.len() {
+            tui.show_help_box("Configuración de red")?;
+            continue;
+        }
+
+        let mode = match selection {
+            0 => "bridge",
+            1 => "host",
+            2 => "none",
+            _ => "bridge",
+        };
+
+        println!("{}", format!("  ✓ Red: {}", mode).green());
         return Ok(mode.to_string());
     }
 }

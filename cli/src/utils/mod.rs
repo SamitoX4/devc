@@ -15,6 +15,7 @@ pub struct SecurityConfig {
     pub remote_password: String,
     pub container_password: String,
     pub sudo_mode: String,      // nopasswd | password | none
+    pub network_mode: String,   // bridge | host | none
 }
 
 impl Default for SecurityConfig {
@@ -26,6 +27,7 @@ impl Default for SecurityConfig {
             remote_password: password::generate_12(),
             container_password: password::generate_12(),
             sudo_mode: "nopasswd".to_string(),
+            network_mode: "bridge".to_string(),
         }
     }
 }

@@ -287,6 +287,16 @@ impl ConfigMerger {
             }
         }
 
+        // Handle network_mode placeholder
+        if content.contains("__NETWORK_MODE__") {
+            if security.network_mode == "bridge" {
+                // Bridge is the default; remove the line to keep compose clean
+                content = content.replace("    network_mode: __NETWORK_MODE__\n", "");
+            } else {
+                content = content.replace("__NETWORK_MODE__", &security.network_mode);
+            }
+        }
+
         fs::write(&compose_path, content)?;
         Ok(())
     }
