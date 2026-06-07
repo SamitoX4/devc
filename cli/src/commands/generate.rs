@@ -591,7 +591,7 @@ fn ensure_docker_network(network_name: &str, tui: &Tui, template: &str) -> Resul
 
     if docker_check.is_err() {
         println!("{}", "  ⚠ Docker no detectado. Creá la red manualmente:".yellow());
-        println!("     docker network create {}".cyan(), network_name);
+        println!("     docker network create {}", network_name.cyan());
         return Ok(());
     }
 
@@ -620,7 +620,7 @@ fn ensure_docker_network(network_name: &str, tui: &Tui, template: &str) -> Resul
 
     if !should_create {
         println!("{}", "  ⚠ Recordá crear la red antes de levantar el contenedor:".yellow());
-        println!("     docker network create {}".cyan(), network_name);
+        println!("     docker network create {}", network_name.cyan());
         return Ok(());
     }
 
@@ -652,7 +652,7 @@ fn ensure_docker_network(network_name: &str, tui: &Tui, template: &str) -> Resul
 
     if !use_sudo {
         println!("{}", "  ⚠ Creá la red manualmente:".yellow());
-        println!("     sudo docker network create {}".cyan(), network_name);
+        println!("     sudo docker network create {}", network_name.cyan());
         return Ok(());
     }
 
@@ -684,7 +684,7 @@ fn ensure_docker_network(network_name: &str, tui: &Tui, template: &str) -> Resul
         let stderr = String::from_utf8_lossy(&output.stderr);
         println!("{}", format!("  ✗ Falló sudo: {}", stderr.trim()).red());
         println!("{}", "  ⚠ Creá la red manualmente:".yellow());
-        println!("     sudo docker network create {}".cyan(), network_name);
+        println!("     sudo docker network create {}", network_name.cyan());
     }
 
     Ok(())
