@@ -261,7 +261,17 @@ impl ConfigMerger {
         );
 
         if content.contains("__SECURITY_ARGS__") {
-            content = content.replace("__SECURITY_ARGS__", &security_block);
+            // Replace the entire line containing the placeholder to preserve indentation
+            let lines: Vec<&str> = content.lines().collect();
+            let mut new_lines = Vec::new();
+            for line in lines {
+                if line.contains("__SECURITY_ARGS__") {
+                    new_lines.push(security_block.clone());
+                } else {
+                    new_lines.push(line.to_string());
+                }
+            }
+            content = new_lines.join("\n");
         } else if content.contains("args:") {
             // Try to inject after the last build arg
             // Find "args:" section and append security args
