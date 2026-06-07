@@ -367,10 +367,13 @@ fn prompt_passwords(remote_user: &str, template: &str, tui: &Tui) -> Result<(Str
 
 fn prompt_password(for_user: &str) -> Result<String> {
     loop {
-        let pass = Password::new()
+        let pass = match Password::new()
             .with_prompt(format!("Contraseña para {} (Enter para auto-generar)", for_user))
             .interact()
-            .context("Failed to read password")?;
+        {
+            Ok(p) => p,
+            Err(_) => anyhow::bail!("Prompt cancelado por el usuario"),
+        };
 
         if pass.is_empty() {
             let generated = password::generate_12();
@@ -383,10 +386,13 @@ fn prompt_password(for_user: &str) -> Result<String> {
             continue;
         }
 
-        let confirm = Password::new()
+        let confirm = match Password::new()
             .with_prompt(format!("Confirmar contraseña para {}", for_user))
             .interact()
-            .context("Failed to read password confirmation")?;
+        {
+            Ok(p) => p,
+            Err(_) => anyhow::bail!("Prompt cancelado por el usuario"),
+        };
 
         if pass != confirm {
             println!("{}", "  ✗ Las contraseñas no coinciden. Intentá de nuevo.".red());
