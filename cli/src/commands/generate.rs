@@ -339,19 +339,27 @@ fn prompt_security_mode(default: &str, template: &str, tui: &Tui) -> Result<Stri
 }
 
 fn prompt_remote_user(default: &str, template: &str, tui: &Tui) -> Result<String> {
-    tui.draw_frame("Usuario de desarrollo", Some(template))?;
-    if let Some(ctx) = crate::utils::tui::get_step_context("Usuario de desarrollo") {
-        tui.print_context(&ctx)?;
+    loop {
+        tui.draw_frame("Usuario de desarrollo", Some(template))?;
+        if let Some(ctx) = crate::utils::tui::get_step_context("Usuario de desarrollo") {
+            tui.print_context(&ctx)?;
+        }
+        println!("  {} {}", "Tip:".italic().dimmed(), "Escribí ?help y presioná Enter para ver ayuda detallada".italic().dimmed());
+
+        let input: String = Input::new()
+            .with_prompt("Nombre de usuario de desarrollo")
+            .default(default.to_string())
+            .interact_text()
+            .context("Failed to read remote user name")?;
+
+        if input.trim() == "?help" {
+            tui.show_help_box("Usuario de desarrollo")?;
+            continue;
+        }
+
+        println!("{}", format!("  ✓ Usuario: {}", input).green());
+        return Ok(input);
     }
-
-    let input: String = Input::new()
-        .with_prompt("Nombre de usuario de desarrollo")
-        .default(default.to_string())
-        .interact_text()
-        .context("Failed to read remote user name")?;
-
-    println!("{}", format!("  ✓ Usuario: {}", input).green());
-    Ok(input)
 }
 
 fn prompt_passwords(remote_user: &str, template: &str, tui: &Tui) -> Result<(String, String)> {

@@ -42,9 +42,11 @@ impl Tui {
 
     /// Print contextual help lines right below the header (for Input / Password prompts).
     pub fn print_context(&self, lines: &[String]) -> Result<()> {
+        println!("  {}", "┌─ Contexto ─".cyan());
         for line in lines {
-            println!("  {}", line.dimmed());
+            println!("  {} {}", "│".cyan(), line.italic().cyan());
         }
+        println!("  {}", "└─────────────".cyan());
         println!();
         Ok(())
     }
