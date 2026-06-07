@@ -145,11 +145,6 @@ pub async fn run(
         }
     }
 
-    // Create shared Docker network after generation if configured
-    if let Some(ref net_name) = security.network_name {
-        ensure_docker_network(net_name, &selected_template)?;
-    }
-
     println!();
     println!("{}", "✓ Devcontainer generated successfully!".green());
     println!();
@@ -571,7 +566,10 @@ fn prompt_network_mode(default: &str, template: &str, tui: &Tui) -> Result<(Stri
                 .default("shared_net".to_string())
                 .interact_text()
                 .context("Failed to read shared network name")?;
-            Some(input.trim().to_string())
+            let net_name = input.trim().to_string();
+            // Verify and create immediately after naming
+            ensure_docker_network(&net_name, template)?;
+            Some(net_name)
         } else {
             None
         }
