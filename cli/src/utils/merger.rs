@@ -67,25 +67,34 @@ impl ConfigMerger {
         security: &SecurityConfig,
     ) -> Result<()> {
         if let Some(obj) = json.as_object_mut() {
+            // Detect DB-only templates by service name
+            let is_db_service = obj.get("service")
+                .and_then(|s| s.as_str())
+                .map(|s| s == "db")
+                .unwrap_or(false);
+
             // Update name
             if let Some(name) = obj.get_mut("name") {
                 *name = serde_json::Value::String(format!("{} DevContainer", project_name));
             }
 
-            // Update remoteUser
-            obj.insert(
-                "remoteUser".to_string(),
-                serde_json::Value::String(security.remote_user.clone()),
-            );
-
-            // Update containerUser if defined
-            if let Some(container_user) = &security.container_user {
+            // Skip remoteUser/containerUser for DB-only service templates
+            if !is_db_service {
+                // Update remoteUser
                 obj.insert(
-                    "containerUser".to_string(),
-                    serde_json::Value::String(container_user.clone()),
+                    "remoteUser".to_string(),
+                    serde_json::Value::String(security.remote_user.clone()),
                 );
-            } else {
-                obj.remove("containerUser");
+
+                // Update containerUser if defined
+                if let Some(container_user) = &security.container_user {
+                    obj.insert(
+                        "containerUser".to_string(),
+                        serde_json::Value::String(container_user.clone()),
+                    );
+                } else {
+                    obj.remove("containerUser");
+                }
             }
 
             // Update containerEnv with git config
@@ -101,17 +110,21 @@ impl ConfigMerger {
                             serde_json::Value::String(email.to_string()),
                         );
                     }
-                    // Also pass security env vars for scripts to use
-                    env.insert(
-                        "REMOTE_USER".to_string(),
-                        serde_json::Value::String(security.remote_user.clone()),
-                    );
+                    if !is_db_service {
+                        // Also pass security env vars for scripts to use
+                        env.insert(
+                            "REMOTE_USER".to_string(),
+                            serde_json::Value::String(security.remote_user.clone()),
+                        );
+                    }
                 }
             } else if git_name.is_some() && git_email.is_some() {
                 let mut env = serde_json::Map::new();
                 env.insert("GIT_USER_NAME".to_string(), serde_json::Value::String(git_name.unwrap().to_string()));
                 env.insert("GIT_USER_EMAIL".to_string(), serde_json::Value::String(git_email.unwrap().to_string()));
-                env.insert("REMOTE_USER".to_string(), serde_json::Value::String(security.remote_user.clone()));
+                if !is_db_service {
+                    env.insert("REMOTE_USER".to_string(), serde_json::Value::String(security.remote_user.clone()));
+                }
                 obj.insert("containerEnv".to_string(), serde_json::Value::Object(env));
             }
         }
