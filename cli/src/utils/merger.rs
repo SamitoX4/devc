@@ -265,8 +265,9 @@ impl ConfigMerger {
         );
 
         // Replace security args placeholder or inject them
+        // Passwords are quoted to prevent YAML special chars (* $ { } etc.) from being parsed as anchors/variables
         let security_block = format!(
-            "        REMOTE_USER: {}\n        REMOTE_PASSWORD: {}\n        CONTAINER_PASSWORD: {}\n        SUDO_MODE: {}",
+            "        REMOTE_USER: {}\n        REMOTE_PASSWORD: '{}'\n        CONTAINER_PASSWORD: '{}'\n        SUDO_MODE: {}",
             security.remote_user,
             security.remote_password,
             security.container_password,
