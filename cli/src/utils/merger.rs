@@ -309,9 +309,11 @@ impl ConfigMerger {
             );
             content = content.replace("    __NETWORKS_SERVICE__\n", &service_block);
             content = content.replace("__NETWORKS_TOP__\n", &top_block);
+            content = content.replace("__NETWORKS_TOP__", &top_block);
         } else {
             content = content.replace("    __NETWORKS_SERVICE__\n", "");
             content = content.replace("__NETWORKS_TOP__\n", "");
+            content = content.replace("__NETWORKS_TOP__", "");
         }
 
         fs::write(&compose_path, content)?;
