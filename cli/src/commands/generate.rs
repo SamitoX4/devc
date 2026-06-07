@@ -90,16 +90,6 @@ pub async fn run(
         &tui,
     )?;
 
-    tui.clear_for_dialoguer()?;
-
-    // Ensure shared Docker network exists if configured
-    if let Some(ref net_name) = security.network_name {
-        println!("{}", format!("👉 Configurando red compartida: {}", net_name).bold().yellow());
-        ensure_docker_network(net_name, &selected_template)?;
-    } else {
-        println!("{}", "👉 No hay red compartida configurada".dimmed());
-    }
-
     tui.cleanup()?;
 
     println!();
@@ -153,6 +143,11 @@ pub async fn run(
             println!("{}", format!("✓ Credenciales guardadas en: {}", saved_path.display()).green());
             println!("{}", "  (Permisos: solo lectura para el dueño)".dimmed());
         }
+    }
+
+    // Create shared Docker network after generation if configured
+    if let Some(ref net_name) = security.network_name {
+        ensure_docker_network(net_name, &selected_template)?;
     }
 
     println!();
