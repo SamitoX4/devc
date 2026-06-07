@@ -369,6 +369,7 @@ fn prompt_password(for_user: &str) -> Result<String> {
     loop {
         let pass = match Password::new()
             .with_prompt(format!("Contraseña para {} (Enter para auto-generar)", for_user))
+            .allow_empty_password(true)
             .interact()
         {
             Ok(p) => p,
@@ -388,6 +389,7 @@ fn prompt_password(for_user: &str) -> Result<String> {
 
         let confirm = match Password::new()
             .with_prompt(format!("Confirmar contraseña para {}", for_user))
+            .allow_empty_password(true)
             .interact()
         {
             Ok(p) => p,
