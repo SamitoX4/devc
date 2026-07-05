@@ -31,6 +31,12 @@ enum Commands {
         #[arg(short = 'n', long, help = "Project name")]
         name: Option<String>,
 
+        #[arg(short = 'o', long, help = "Target directory where the devcontainer will be generated")]
+        target_dir: Option<String>,
+
+        #[arg(long, help = "Use default values for all optional prompts (non-interactive mode)")]
+        defaults: bool,
+
         #[arg(long, help = "Git user name")]
         git_name: Option<String>,
 
@@ -104,6 +110,8 @@ async fn main() -> anyhow::Result<()> {
         Commands::Gen {
             template,
             name,
+            target_dir,
+            defaults,
             git_name,
             git_email,
             security_mode,
@@ -117,6 +125,8 @@ async fn main() -> anyhow::Result<()> {
             generate::run(
                 template.as_deref(),
                 name.as_deref(),
+                target_dir.as_deref(),
+                defaults,
                 git_name.as_deref(),
                 git_email.as_deref(),
                 security_mode.as_deref(),

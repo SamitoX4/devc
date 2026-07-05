@@ -13,6 +13,8 @@ use crate::utils::SecurityConfig;
 pub async fn run(
     template: Option<&str>,
     name: Option<&str>,
+    target_dir_flag: Option<&str>,
+    defaults: bool,
     git_name: Option<&str>,
     git_email: Option<&str>,
     security_mode: Option<&str>,
@@ -45,8 +47,24 @@ pub async fn run(
     };
 
     // 3. Target Directory
-    tui.draw_frame("Ubicación del devcontainer", Some(&selected_template))?;
-    let target_dir = prompt_target_directory(&tui)?;
+    let target_dir = if let Some(dir) = target_dir_flag {
+        let path = std::path::PathBuf::from(dir);
+        let resolved = if path.is_relative() {
+            std::env::current_dir()
+                .context("Could not determine current directory")?
+                .join(path)
+        } else {
+            path
+        };
+        if !resolved.exists() {
+            std::fs::create_dir_all(&resolved)
+                .context(format!("Failed to create directory: {}", resolved.display()))?;
+        }
+        resolved
+    } else {
+        tui.draw_frame("Ubicación del devcontainer", Some(&selected_template))?;
+        prompt_target_directory(&tui)?
+    };
 
     // 4. Git Config
     let git_config = cache.get_git_config();
@@ -72,10 +90,18 @@ pub async fn run(
     }
 
     // 5. Security Config
+    // In non-interactive mode with --defaults, use template default security mode
+    let default_security = get_security_defaults(&selected_template);
+    let effective_security_mode = if defaults && security_mode.is_none() {
+        Some(default_security.mode.as_str())
+    } else {
+        security_mode
+    };
+
     tui.draw_frame("Configuración de seguridad", Some(&selected_template))?;
     let security = build_security_config(
         &selected_template,
-        security_mode,
+        effective_security_mode,
         remote_user,
         remote_password,
         container_password,
@@ -105,7 +131,7 @@ pub async fn run(
     ConfigMerger::update_docker_compose(&target_dir, &project_name, &security)?;
 
     let dockerfile_path = target_dir.join(".devcontainer").join("Dockerfile");
-    if dockerfile_path.exists() {
+    if dockerfile_path.exists() && !defaults {
         if let Some(custom_args) = prompt_custom_versions(&dockerfile_path, &selected_template, &tui)? {
             apply_custom_versions(&dockerfile_path, &custom_args)?;
             apply_custom_versions_to_config_files(&target_dir, &custom_args)?;
@@ -131,6 +157,7 @@ pub async fn run(
             &selected_template,
             &security,
             save_credentials_flag,
+            defaults,
             &tui,
         )? {
             println!();
@@ -691,11 +718,15 @@ fn maybe_save_credentials(
     template: &str,
     security: &SecurityConfig,
     save_credentials_flag: Option<&str>,
+    defaults: bool,
     tui: &Tui,
 ) -> Result<Option<std::path::PathBuf>> {
     let should_save = if let Some(flag) = save_credentials_flag {
         // Non-empty flag means yes (value is the path or "default")
         !flag.is_empty()
+    } else if defaults {
+        // Non-interactive mode: do not prompt, do not save
+        false
     } else {
         // Interactive prompt
         tui.draw_frame("Guardar credenciales", Some(template))?;
