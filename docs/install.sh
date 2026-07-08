@@ -18,7 +18,7 @@ OS=$(uname -s)
 case "$OS" in
     Linux*)
         case "$ARCH" in
-            x86_64) TRIPLE="x86_64-unknown-linux-gnu" ;;
+            x86_64) TRIPLE="x86_64-unknown-linux-musl" ;;
             aarch64|arm64) TRIPLE="aarch64-unknown-linux-gnu" ;;
             *) echo "Unsupported architecture: $ARCH"; exit 1 ;;
         esac

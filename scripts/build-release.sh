@@ -56,6 +56,34 @@ check_and_install_rust() {
     fi
 }
 
+check_musl_toolchain() {
+    if [[ "$TRIPLE" != *"-musl" ]]; then
+        return 0
+    fi
+
+    echo "=== Checking musl toolchain for $TRIPLE ==="
+
+    if ! command -v musl-gcc &> /dev/null; then
+        if command -v apt-get &> /dev/null; then
+            echo "Installing musl-tools..."
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq musl-tools
+        else
+            echo "Error: musl-gcc not found and no supported package manager detected"
+            echo "Please install musl-tools manually (e.g. 'apt-get install musl-tools')"
+            exit 1
+        fi
+    fi
+
+    if ! rustup target list --installed | grep -q "^${TRIPLE}\$"; then
+        echo "Installing Rust target $TRIPLE..."
+        rustup target add "$TRIPLE"
+    fi
+
+    echo "✓ musl toolchain ready"
+    echo ""
+}
+
 REPO="SamitoX4/devc"
 CLI_DIR="$(cd "$(dirname "$0")" && cd .. && pwd)/cli"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -84,7 +112,7 @@ OS=$(uname -s)
 case "$OS" in
     Linux*)
         case "$ARCH" in
-            x86_64) TRIPLE="x86_64-unknown-linux-gnu" ;;
+            x86_64) TRIPLE="x86_64-unknown-linux-musl" ;;
             aarch64) TRIPLE="aarch64-unknown-linux-gnu" ;;
             *) echo "Unsupported architecture: $ARCH"; exit 1 ;;
         esac
@@ -103,6 +131,10 @@ case "$OS" in
 esac
 
 echo "Platform: $OS ($TRIPLE)"
+echo ""
+
+echo "=== Checking target toolchain ==="
+check_musl_toolchain
 echo ""
 
 echo "=== Step 2: Select version ==="
@@ -239,9 +271,9 @@ cargo clean
 echo ""
 
 echo "=== Step 5: Building release ==="
-cargo build --release
+cargo build --release --target "$TRIPLE"
 
-if [ ! -f "target/release/devc" ]; then
+if [ ! -f "target/${TRIPLE}/release/devc" ]; then
     echo "Error: Build failed"
     exit 1
 fi
@@ -257,7 +289,7 @@ mkdir -p "$RELEASES_DIR"
 mkdir -p "$STAGING_DIR"
 
 echo "Copying binary..."
-cp target/release/devc "$STAGING_DIR/"
+cp "target/${TRIPLE}/release/devc" "$STAGING_DIR/"
 
 echo "Downloading templates from GitHub..."
 TEMPLATES_URL="https://github.com/SamitoX4/devcontainers/archive/refs/heads/master.zip"

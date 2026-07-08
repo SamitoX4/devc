@@ -12,7 +12,7 @@ function getPlatformAsset(version) {
     },
     linux: {
       x64: {
-        name: `devc-v${version}-x86_64-unknown-linux-gnu.tar.gz`,
+        name: `devc-v${version}-x86_64-unknown-linux-musl.tar.gz`,
         platform: 'linux-x64',
         bin: 'devc',
       },
