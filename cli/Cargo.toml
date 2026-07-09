@@ -1,6 +1,6 @@
 [package]
 name = "devc"
-version = "0.10.3"
+version = "0.10.4"
 edition = "2021"
 description = "CLI for generating devcontainers"
 authors = ["SamitoX4"]
@@ -14,6 +14,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 tokio = { version = "1", features = ["full"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 zip = "2.2"
 indicatif = "0.17"
 console = "0.15"

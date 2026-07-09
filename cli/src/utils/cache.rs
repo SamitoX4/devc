@@ -151,16 +151,54 @@ impl CacheManager {
 
         if self.templates_dir.join("nodejs").exists() && !force {
             if verbose {
-                println!("Templates already cached, skipping download");
+                println!("Checking for template updates...");
             }
-            return Ok(());
-        }
-
-        if verbose {
+            match fetcher.get_latest_version(verbose).await {
+                Ok(latest_version) => {
+                    if self.config.templates_version == latest_version {
+                        if verbose {
+                            println!("Templates are up to date (v{})", latest_version);
+                        }
+                        return Ok(());
+                    }
+                    if verbose {
+                        println!(
+                            "New version available: {} (current: {})",
+                            latest_version, self.config.templates_version
+                        );
+                        println!("Downloading templates from repository...");
+                    }
+                }
+                Err(e) => {
+                    if verbose {
+                        eprintln!("Could not check for updates: {}", e);
+                        eprintln!("Proceeding with download anyway...");
+                    }
+                }
+            }
+        } else if verbose {
             println!("Downloading templates from repository...");
         }
 
+        // Remove existing cached templates before downloading to avoid stale files
+        if self.templates_dir.exists() {
+            fs::remove_dir_all(&self.templates_dir)
+                .context("Failed to clear existing template cache")?;
+            fs::create_dir_all(&self.templates_dir)
+                .context("Failed to recreate template cache directory")?;
+        }
+
         fetcher.download_templates(&self.templates_dir, verbose).await?;
+
+        // Update the stored templates version after successful download
+        if let Ok(fetcher) = TemplateFetcher::new().get_latest_version(false).await {
+            let mut config = self.config.clone();
+            config.templates_version = fetcher;
+            config.last_check = chrono::Local::now().to_rfc3339();
+            let content = serde_json::to_string_pretty(&config)?;
+            fs::write(&self.config_path, content)
+                .context("Failed to save cache configuration")?;
+        }
 
         println!("Templates downloaded successfully!");
         Ok(())
